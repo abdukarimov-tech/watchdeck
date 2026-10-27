@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -13,31 +14,32 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.pulse.PulseViewModel
 import app.pulse.R
 import app.pulse.crypto.ServersStore
 import app.pulse.data.MetricsUi
-import app.pulse.data.formatBytes
 import app.pulse.net.ConnState
 import app.pulse.ui.components.StatusDot
 import app.pulse.ui.components.loadColor
@@ -46,7 +48,7 @@ import app.pulse.ui.theme.PulseError
 import app.pulse.ui.theme.PulseSuccess
 import app.pulse.ui.theme.PulseWarn
 
-private fun stateColor(state: ConnState?) = when (state) {
+fun serverStateColor(state: ConnState?) = when (state) {
     ConnState.CONNECTED -> PulseSuccess
     ConnState.CONNECTING -> PulseWarn
     ConnState.DISCONNECTED -> PulseError
@@ -54,80 +56,88 @@ private fun stateColor(state: ConnState?) = when (state) {
 }
 
 /**
- * Окно «Серверы»: карточки-виджеты добавленных серверов с минимумом живых
- * данных. Тап по карточке — подробные данные сервера.
+ * Главный экран: список карточек серверов с живыми виджетами.
+ * Тап по карточке — подробные данные; FAB «+» — добавление сервера.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ServersSheet(
-    servers: List<ServersStore.ServerConfig>,
-    activeServerId: String?,
-    states: Map<String, ConnState>,
-    metrics: Map<String, MetricsUi>,
-    agentsCount: Map<String, Int>,
-    onDismiss: () -> Unit,
-    onSelect: (String) -> Unit,
-    onAdd: () -> Unit,
-    onRemove: (String) -> Unit,
+fun ServerListScreen(
+    vm: PulseViewModel,
     onOpenDetails: (String) -> Unit,
+    onAdd: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Text(
-            stringResource(R.string.header_servers),
-            style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier.padding(horizontal = 20.dp),
-        )
-        LazyColumn(
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            items(servers, key = { it.id }) { server ->
-                ServerWidgetCard(
-                    server = server,
-                    isActive = server.id == activeServerId,
-                    state = states[server.id],
-                    metrics = metrics[server.id],
-                    agentCount = agentsCount[server.id] ?: 0,
-                    onClick = { onOpenDetails(server.id) },
-                    onSelect = {
-                        onSelect(server.id)
-                        onDismiss()
-                    },
-                    onRemove = { onRemove(server.id) },
-                )
+    val servers by vm.servers.collectAsState()
+    val states by vm.serverStates.collectAsState()
+    val metrics by vm.serverMetrics.collectAsState()
+    val agentsByServer by vm.serverAgents.collectAsState()
+
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = onAdd,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.add_server))
             }
-            item {
-                FilledTonalButton(
-                    onClick = {
-                        onDismiss()
-                        onAdd()
-                    },
-                    shape = CircleShape,
-                    colors = androidx.compose.material3.ButtonDefaults.filledTonalButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Icon(Icons.Filled.Add, contentDescription = null)
-                    Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.add_server))
+        },
+    ) { padding ->
+        Column(Modifier.padding(padding)) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(start = 20.dp, end = 12.dp, top = 14.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        stringResource(R.string.app_name),
+                        style = MaterialTheme.typography.headlineMedium,
+                    )
+                    Text(
+                        pluralStringResource(R.plurals.servers_count, servers.size, servers.size),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                IconButton(onClick = onOpenSettings) {
+                    Icon(
+                        Icons.Filled.Settings,
+                        contentDescription = stringResource(R.string.settings_title),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            ) {
+                items(servers, key = { it.id }) { server ->
+                    ServerWidgetCard(
+                        server = server,
+                        isActive = server.id == vm.activeServerId.collectAsState().value,
+                        state = states[server.id],
+                        metrics = metrics[server.id],
+                        agentCount = agentsByServer[server.id]?.size ?: 0,
+                        onClick = { onOpenDetails(server.id) },
+                    )
                 }
             }
         }
     }
 }
 
+/** Карточка-виджет сервера: статус, подпись, мини-показатели CPU/ОЗУ/Диск. */
 @Composable
-private fun ServerWidgetCard(
+fun ServerWidgetCard(
     server: ServersStore.ServerConfig,
     isActive: Boolean,
     state: ConnState?,
     metrics: MetricsUi?,
     agentCount: Int,
     onClick: () -> Unit,
-    onSelect: () -> Unit,
-    onRemove: () -> Unit,
 ) {
     Card(
         colors = CardDefaults.cardColors(
@@ -140,7 +150,7 @@ private fun ServerWidgetCard(
     ) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                StatusDot(stateColor(state), size = 10.dp)
+                StatusDot(serverStateColor(state), size = 10.dp)
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -167,14 +177,6 @@ private fun ServerWidgetCard(
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer
-                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                IconButton(onClick = onRemove) {
-                    Icon(
-                        Icons.Filled.Close,
-                        contentDescription = stringResource(R.string.cd_remove_server),
-                        tint = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer
                         else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -240,7 +242,7 @@ private fun WidgetStat(
                 color = if (active) MaterialTheme.colorScheme.onPrimaryContainer
                 else MaterialTheme.colorScheme.onSurface,
             )
-            androidx.compose.material3.LinearProgressIndicator(
+            LinearProgressIndicator(
                 progress = { fraction ?: 0f },
                 trackColor = androidx.compose.ui.graphics.Color.Transparent,
                 color = fraction?.let { loadColor(it) } ?: MaterialTheme.colorScheme.outline,

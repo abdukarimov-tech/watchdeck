@@ -26,6 +26,12 @@
         <item quantity="many">%d агентов</item>
         <item quantity="other">%d агентов</item>
     </plurals>
+    <plurals name="servers_count">
+        <item quantity="one">%d сервер</item>
+        <item quantity="few">%d сервера</item>
+        <item quantity="many">%d серверов</item>
+        <item quantity="other">%d серверов</item>
+    </plurals>
 
     <!-- settings -->
     <string name="settings_title">Настройки</string>

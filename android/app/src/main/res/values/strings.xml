@@ -24,6 +24,10 @@
         <item quantity="one">%d agent</item>
         <item quantity="other">%d agents</item>
     </plurals>
+    <plurals name="servers_count">
+        <item quantity="one">%d server</item>
+        <item quantity="other">%d servers</item>
+    </plurals>
 
     <!-- settings -->
     <string name="settings_title">Settings</string>

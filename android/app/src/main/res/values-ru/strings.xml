@@ -90,6 +90,13 @@
     <string name="relay_url_hint">wss://relay.example.com</string>
     <string name="relay_admin_token">Админ-токен релея</string>
     <string name="install_button">Установить агента и подключиться</string>
+    <string name="add_server_title">Добавить сервер</string>
+    <string name="onb_step_fmt">Шаг %1$d из %2$d</string>
+    <string name="onb_next">Далее</string>
+    <string name="onb_back">Назад</string>
+    <string name="or_try_demo">Или попробуйте демо-режим</string>
+    <string name="install_done_title">Агент установлен</string>
+    <string name="install_error_title">Ошибка установки</string>
     <string name="install_running">Установка агента…</string>
     <string name="install_error_prefix">Ошибка установки</string>
 

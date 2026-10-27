@@ -273,6 +273,11 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
         servers.value = serversStore.load()
     }
 
+    /** Сброс состояния установки (кнопка «Назад» после ошибки). */
+    fun resetInstall() {
+        installState.value = null
+    }
+
     fun confirmHostKey(accepted: Boolean) {
         val prompt = hostKeyPrompt.value
         prompt?.decision?.complete(accepted)

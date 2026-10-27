@@ -86,6 +86,13 @@
     <string name="relay_url_hint">wss://relay.example.com</string>
     <string name="relay_admin_token">Relay admin token</string>
     <string name="install_button">Install agent and connect</string>
+    <string name="add_server_title">Add server</string>
+    <string name="onb_step_fmt">Step %1$d of %2$d</string>
+    <string name="onb_next">Next</string>
+    <string name="onb_back">Back</string>
+    <string name="or_try_demo">Or try the demo mode</string>
+    <string name="install_done_title">Agent installed</string>
+    <string name="install_error_title">Installation failed</string>
     <string name="install_running">Installing agent…</string>
     <string name="install_error_prefix">Installation failed</string>
 

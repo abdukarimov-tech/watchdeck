@@ -1,6 +1,6 @@
 # WatchDeck — мониторинг VPS/Docker с телефона
 
-Мобильный клиент (Android) для мониторинга серверов и управления Docker-контейнерами:
+Мобильные клиенты (Android + iOS) для мониторинга серверов и управления Docker-контейнерами:
 несколько серверов в одном приложении, дашборд CPU/RAM/Disk, список контейнеров
 с перезапуском, стриминг логов с подсветкой ошибок и push-уведомления о падении сервисов.
 
@@ -12,9 +12,9 @@
 ```
 ┌─────────┐   wss    ┌──────────┐   wss    ┌─────────┐
 │  Phone  │ ◄──────► │  Relay   │ ◄──────► │  Agent  │
-│  (Kotlin)│          │ (Rust)   │          │ (Rust)  │──► /var/run/docker.sock
-└─────────┘          └────┬─────┘          └─────────┘
-                          │ FCM push (контейнер упал)
+│(Kotlin/ │          │ (Rust)   │          │ (Rust)  │──► /var/run/docker.sock
+│ SwiftUI)│          └────┬─────┘          └─────────┘
+└─────────┘               │ FCM push (контейнер упал)
                           ▼
                      Google → устройство
 ```
@@ -28,6 +28,9 @@
   (OkHttp + protobuf-lite), выбор сервера, статус-баннер соединения, токен клиента
   в Android Keystore (StrongBox при наличии). Есть демо-режим без сервера (для
   скриншотов и store review).
+- **Приложение iOS** (`ios/`) — SwiftUI-порт Android-версии: тот же протокол
+  (protobuf поверх WebSocket), TLS-пиннинг, SSH-инсталлятор и терминал на
+  Citadel, секреты в Keychain, biometric app lock. Детали — `ios/README.md`.
 
 ## Структура
 
@@ -35,7 +38,8 @@
 proto/pulse.proto      — контракт протокола (protobuf), единый для всех частей
 agent/                 — Rust workspace: agent-core (метрики, docker), agent-bin
 relay/                 — релей
-android/               — приложение
+android/               — приложение (Kotlin + Compose)
+ios/                   — приложение (SwiftUI, Swift 5, iOS 17+)
 deploy/                — systemd unit + install.sh
 docker-compose.dev.yml — локальный e2e-стенд
 ```

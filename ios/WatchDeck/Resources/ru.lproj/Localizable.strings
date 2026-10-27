@@ -1,0 +1,120 @@
+"header_servers" = "Серверы";
+"header_agents" = "Агенты этого сервера";
+"demo_label" = "Демо";
+"servers_active_badge" = "активный";
+"servers_demo_caption" = "демо-режим — примеры данных";
+"servers_connecting_caption" = "ждем данных…";
+"widget_cpu" = "ЦП";
+"widget_ram" = "ОЗУ";
+"widget_disk" = "Диск";
+"details_make_active" = "Сделать активным";
+"details_remove" = "Удалить сервер";
+"details_remove_text" = "Этот сервер и его токен будут удалены с устройства.";
+"details_remove_confirm" = "Удалить";
+"details_uptime" = "аптайм %@";
+
+"settings_title" = "Настройки";
+"settings_about" = "О приложении";
+"settings_version" = "Версия";
+"settings_source" = "Исходный код";
+"settings_site" = "Сайт";
+"settings_contact" = "Написать в поддержку";
+"settings_docs" = "Правовые документы";
+"settings_privacy" = "Политика конфиденциальности";
+"settings_terms" = "Условия использования";
+"settings_licenses" = "Лицензии open source";
+"settings_licenses_intro" = "WatchDeck построен на отличном открытом ПО:";
+"settings_security" = "Безопасность";
+"settings_data" = "Данные";
+"settings_reset" = "Сбросить данные приложения";
+"settings_reset_text" = "Все добавленные серверы и токены будут удалены с устройства. Приложение вернется к экрану входа. Это действие необратимо.";
+"settings_reset_confirm" = "Сбросить всё";
+"settings_cancel" = "Отмена";
+"document_title_privacy" = "Политика конфиденциальности";
+"document_title_terms" = "Условия использования";
+
+"conn_connecting" = "Подключаемся к релею…";
+"conn_offline" = "Нет связи — переподключаемся…";
+"conn_status_connecting" = "подключаемся…";
+"conn_status_offline" = "нет связи — повтор";
+"conn_status_online" = "онлайн";
+
+"tab_dashboard" = "Сервер";
+"tab_containers" = "Контейнеры";
+"tab_logs" = "Логи";
+"details_tab_terminal" = "Терминал";
+
+"onboarding_tagline" = "Мониторинг серверов и управление Docker-контейнерами: метрики, логи и оповещения о падениях.";
+"onboarding_relay_url" = "Подключить существующий релей вручную";
+"onboarding_relay_url_hint" = "wss://relay.example.com";
+"onboarding_token" = "Клиентский токен";
+"onboarding_error_url" = "Адрес должен начинаться с wss://";
+"onboarding_error_token" = "Введите клиентский токен";
+"onboarding_connect" = "Подключить";
+"onboarding_privacy" = "Токен хранится только на этом устройстве, защищен связкой ключей iOS (Keychain) и не покидает его.";
+
+"ssh_section" = "Доступ к серверу (SSH)";
+"ssh_host" = "Хост или IP сервера";
+"ssh_port" = "Порт";
+"ssh_user" = "Имя пользователя";
+"auth_password" = "Пароль";
+"auth_key" = "SSH-ключ";
+"ssh_password" = "Пароль";
+"ssh_key" = "Приватный ключ (PEM)";
+"ssh_key_passphrase" = "Парольная фраза ключа (необязательно)";
+"relay_hint" = "Или вставьте адрес уже запущенного релея (docker compose или systemd — см. README проекта) и его клиентский токен.";
+"install_button" = "Установить агента и подключить";
+"or_try_demo" = "Или попробуйте демо-режим";
+"install_running" = "Устанавливаем агента…";
+"ssh_host_key_title" = "Проверьте ключ сервера";
+"ssh_host_key_text" = "Первое подключение к этому серверу. Сверьте отпечаток ключа по доверенному каналу (например, выполните `ssh-keyscan host | ssh-keygen -lf -` на машине, которой доверяете) и подтвердите:";
+"ssh_host_key_confirm" = "Доверять и подключаться";
+"ssh_host_key_rejected" = "Ключ сервера отклонен";
+"ssh_key_unsupported" = "Неподдерживаемый формат ключа (нужен OpenSSH-ключ ed25519 или RSA)";
+"ssh_connect_error" = "Ошибка SSH: %@";
+
+"details_update_agent" = "Обновить агента";
+"agent_updated" = "Агент обновлен";
+"agent_updating" = "Обновляем агента…";
+"agent_version_fmt" = "агент v%@";
+"agent_update_unavailable" = "Для обновления агента нужны сохраненные SSH-данные";
+
+"settings_app_lock" = "Блокировка приложения (биометрия / PIN)";
+"settings_relay_manage" = "Управление релеем";
+"relay_tokens_title" = "Токены релея";
+"relay_revoke" = "Отозвать";
+"relay_revoked_suffix" = "отозван";
+"relay_empty" = "На этом релее нет токенов";
+"lock_title" = "Разблокировать WatchDeck";
+"lock_subtitle" = "Доступ к вашим серверам защищен";
+"lock_retry" = "Разблокировать";
+
+"terminal_placeholder" = "команда…";
+"terminal_send" = "Отправить команду";
+"terminal_unavailable" = "Терминал требует реального сервера с сохраненными SSH-данными.";
+"terminal_connecting" = "Подключаемся…";
+"terminal_connect_error" = "Ошибка SSH: %@";
+
+"dashboard_loading" = "Загружаем метрики…";
+"dashboard_memory" = "Память";
+"dashboard_network_uptime" = "Сеть · аптайм %@";
+
+"containers_restart_title" = "Перезапустить %@?";
+"containers_restart_body" = "Контейнер будет недоступен несколько секунд.";
+"containers_restart_confirm" = "Перезапустить";
+"containers_cancel" = "Отмена";
+"cd_restart" = "Перезапустить контейнер";
+"cd_start" = "Запустить контейнер";
+
+"logs_filter_all" = "Все";
+"logs_filter_issues" = "Проблемы";
+
+"error_offline" = "Нет связи с релеем";
+"error_timeout" = "Релей не ответил за 10 с";
+"error_action_failed" = "Не удалось выполнить: %@";
+"alert_toast" = "%@: %@";
+"alert_server_offline" = "Сервер %@ недоступен";
+"alert_server_online" = "Сервер %@ снова онлайн";
+
+"notif_relay_down_title" = "WatchDeck: релей недоступен";
+"notif_relay_down_body" = "Возможно, серверы лежат. Переподключаемся…";

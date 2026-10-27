@@ -4,6 +4,9 @@
 
 -keep class pulse.v1.** { *; }
 -keep class com.google.protobuf.** { *; }
+# BouncyCastle нужен sshj целиком: провайдер грузится рефлексией по имени класса,
+# а регистрации JCE-алгоритмов завязаны на имена/ресурсы, которые R8 не сохраняет
+-keep class org.bouncycastle.** { *; }
 -dontwarn com.google.protobuf.**
 -dontwarn okhttp3.**
 -dontwarn okio.**

@@ -135,7 +135,19 @@ async fn session(cfg: &Config) -> Result<()> {
             ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             ticker.tick().await; // первый тик сразу
             while !cancel.is_cancelled() {
-                if let Ok(list) = docker.list_containers().await {
+                if let Ok(mut list) = docker.list_containers().await {
+                    // статистика для запущенных контейнеров (лимит, чтобы не душить docker)
+                    for c in list
+                        .iter_mut()
+                        .filter(|c| c.state == agent_core::pb::ContainerState::Running as i32)
+                        .take(20)
+                    {
+                        if let Ok(st) = docker.stats(&c.id).await {
+                            c.cpu_percent = st.cpu_percent;
+                            c.mem_used = st.mem_used;
+                            c.mem_limit = st.mem_limit;
+                        }
+                    }
                     let _ = send(
                         &tx,
                         Msg {

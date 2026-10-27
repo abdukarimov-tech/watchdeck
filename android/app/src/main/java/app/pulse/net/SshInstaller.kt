@@ -84,19 +84,22 @@ class SshInstaller(private val onLog: (String) -> Unit) {
             }
             onLog("authorized as ${cfg.username}")
 
-            val session = ssh.startSession()
             val sudoPassword = (cfg.auth as? SshConfig.Auth.Password)?.password
 
-            fun exec(cmd: String, stdin: String? = null): String {
-                val command = session.exec(cmd)
-                stdin?.let { command.outputStream.write(it.toByteArray()); command.outputStream.flush() }
-                val out = command.inputStream.bufferedReader().readText()
-                val err = command.errorStream.bufferedReader().readText()
-                command.join()
-                val code = command.exitStatus ?: -1
-                if (code != 0) throw IOException("command failed ($code): $cmd\n$err")
-                return out
-            }
+            // session-канал выполняет ровно одну команду — на каждую команду
+            // открываем новый канал и закрываем его (иначе после MaxSessions
+            // команд сервер начнет отказывать в новых каналах)
+            fun exec(cmd: String, stdin: String? = null): String =
+                ssh.startSession().use { session ->
+                    val command = session.exec(cmd)
+                    stdin?.let { command.outputStream.write(it.toByteArray()); command.outputStream.flush() }
+                    val out = command.inputStream.bufferedReader().readText()
+                    val err = command.errorStream.bufferedReader().readText()
+                    command.join()
+                    val code = command.exitStatus ?: -1
+                    if (code != 0) throw IOException("command failed ($code): $cmd\n$err")
+                    out
+                }
 
             val isRoot = exec("id -u").trim() == "0"
             if (!isRoot && sudoPassword == null) {
@@ -271,15 +274,17 @@ class SshInstaller(private val onLog: (String) -> Unit) {
                     ssh.authPublickey(cfg.username, key)
                 }
             }
-            val session = ssh.startSession()
             val sudoPassword = (cfg.auth as? SshConfig.Auth.Password)?.password
-            fun exec(cmd: String, stdin: String? = null): String {
-                val command = session.exec(cmd)
-                stdin?.let { command.outputStream.write(it.toByteArray()); command.outputStream.flush() }
-                val out = command.inputStream.bufferedReader().readText()
-                command.join()
-                return out
-            }
+
+            // как в installServer: новый session-канал на каждую команду
+            fun exec(cmd: String, stdin: String? = null): String =
+                ssh.startSession().use { session ->
+                    val command = session.exec(cmd)
+                    stdin?.let { command.outputStream.write(it.toByteArray()); command.outputStream.flush() }
+                    val out = command.inputStream.bufferedReader().readText()
+                    command.join()
+                    out
+                }
             val isRoot = exec("id -u").trim() == "0"
             if (!isRoot && sudoPassword == null) throw IOException("root or password auth required")
             fun sh(cmd: String): String =
@@ -309,8 +314,8 @@ class SshInstaller(private val onLog: (String) -> Unit) {
     }
 
     companion object {
-        // замените на адрес вашего GitHub Release (release.yml собирает бинари по тегу)
-        const val RELEASE_BASE = "https://github.com/watchdeck-app/watchdeck/releases/latest/download"
+        // GitHub Release, куда release.yml (по тегу v*) выкладывает бинари
+        const val RELEASE_BASE = "https://github.com/abdukarimov-tech/watchdeck/releases/latest/download"
 
         fun newHexToken(): String {
             val bytes = ByteArray(24)

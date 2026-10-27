@@ -94,6 +94,9 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     // SSH-клиент для установки агента на сервер из приложения
     implementation("com.hierynomus:sshj:0.38.0")
+    // явно нужен для подмены встроенного "BC"-провайдера в PulseApp (см. там);
+    // версия совпадает с той, что тянет sshj
+    implementation("org.bouncycastle:bcprov-jdk18on:1.75")
     implementation("androidx.biometric:biometric:1.1.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
     implementation("com.google.protobuf:protobuf-kotlin-lite:4.29.3")

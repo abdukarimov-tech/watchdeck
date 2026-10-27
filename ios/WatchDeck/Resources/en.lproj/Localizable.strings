@@ -1,0 +1,136 @@
+/* WatchDeck — English (default) */
+
+/* servers */
+"header_servers" = "Servers";
+"header_agents" = "Agents of this server";
+"demo_label" = "Demo";
+"servers_active_badge" = "active";
+"servers_demo_caption" = "demo mode — sample data";
+"servers_connecting_caption" = "waiting for data…";
+"widget_cpu" = "CPU";
+"widget_ram" = "RAM";
+"widget_disk" = "Disk";
+"details_make_active" = "Make active";
+"details_remove" = "Remove server";
+"details_remove_text" = "This server and its token will be removed from this device.";
+"details_remove_confirm" = "Remove";
+"details_uptime" = "uptime %@";
+
+/* settings */
+"settings_title" = "Settings";
+"settings_about" = "About";
+"settings_version" = "Version";
+"settings_source" = "Source code";
+"settings_site" = "Website";
+"settings_contact" = "Contact support";
+"settings_docs" = "Legal";
+"settings_privacy" = "Privacy policy";
+"settings_terms" = "Terms of service";
+"settings_licenses" = "Open source licenses";
+"settings_licenses_intro" = "WatchDeck is built with amazing open source software:";
+"settings_security" = "Security";
+"settings_data" = "Data";
+"settings_reset" = "Reset app data";
+"settings_reset_text" = "This removes all added servers and tokens from this device. The app will restart into onboarding. This cannot be undone.";
+"settings_reset_confirm" = "Reset everything";
+"settings_cancel" = "Cancel";
+"document_title_privacy" = "Privacy policy";
+"document_title_terms" = "Terms of service";
+
+/* connection */
+"conn_connecting" = "Connecting to relay…";
+"conn_offline" = "No connection — reconnecting…";
+"conn_status_connecting" = "connecting…";
+"conn_status_offline" = "offline — retrying";
+"conn_status_online" = "online";
+
+/* tabs */
+"tab_dashboard" = "Server";
+"tab_containers" = "Containers";
+"tab_logs" = "Logs";
+"details_tab_terminal" = "Terminal";
+
+/* onboarding */
+"onboarding_tagline" = "Server monitoring and Docker container management: metrics, logs and downtime alerts.";
+"onboarding_relay_url" = "Add existing relay manually";
+"onboarding_relay_url_hint" = "wss://relay.example.com";
+"onboarding_token" = "Client token";
+"onboarding_error_url" = "Address must start with wss://";
+"onboarding_error_token" = "Enter the client token";
+"onboarding_connect" = "Connect";
+"onboarding_privacy" = "The token is stored only on this device, protected by the iOS Keychain. It never leaves the device.";
+
+/* ssh onboarding */
+"ssh_section" = "Server access (SSH)";
+"ssh_host" = "Server host or IP";
+"ssh_port" = "Port";
+"ssh_user" = "Username";
+"auth_password" = "Password";
+"auth_key" = "SSH key";
+"ssh_password" = "Password";
+"ssh_key" = "Private key (PEM)";
+"ssh_key_passphrase" = "Key passphrase (optional)";
+"relay_hint" = "Or paste the address of a relay you already run (docker compose or systemd — see the project README), with its client token.";
+"install_button" = "Install agent and connect";
+"or_try_demo" = "Or try the demo mode";
+"install_running" = "Installing agent…";
+"ssh_host_key_title" = "Verify server key";
+"ssh_host_key_text" = "First connection to this server. Check the key fingerprint through a trusted channel (e.g. run `ssh-keyscan host | ssh-keygen -lf -` on a machine you trust) and confirm:";
+"ssh_host_key_confirm" = "Trust and connect";
+"ssh_host_key_rejected" = "Host key rejected";
+"ssh_key_unsupported" = "Unsupported private key format (ed25519 or RSA OpenSSH key required)";
+"ssh_connect_error" = "SSH error: %@";
+
+/* agent update */
+"details_update_agent" = "Update agent";
+"agent_updated" = "Agent updated";
+"agent_updating" = "Updating agent…";
+"agent_version_fmt" = "agent v%@";
+"agent_update_unavailable" = "Agent update requires stored SSH credentials";
+
+/* security / lock */
+"settings_app_lock" = "App lock (biometrics / PIN)";
+"settings_relay_manage" = "Relay management";
+"relay_tokens_title" = "Relay tokens";
+"relay_revoke" = "Revoke";
+"relay_revoked_suffix" = "revoked";
+"relay_empty" = "No tokens on this relay";
+"lock_title" = "Unlock WatchDeck";
+"lock_subtitle" = "Access to your servers is protected";
+"lock_retry" = "Unlock";
+
+/* terminal */
+"terminal_placeholder" = "command…";
+"terminal_send" = "Send command";
+"terminal_unavailable" = "Terminal requires a real server connection with stored SSH credentials.";
+"terminal_connecting" = "Connecting…";
+"terminal_connect_error" = "SSH error: %@";
+
+/* dashboard */
+"dashboard_loading" = "Loading metrics…";
+"dashboard_memory" = "Memory";
+"dashboard_network_uptime" = "Network · uptime %@";
+
+/* containers */
+"containers_restart_title" = "Restart %@?";
+"containers_restart_body" = "The container will be unavailable for a few seconds.";
+"containers_restart_confirm" = "Restart";
+"containers_cancel" = "Cancel";
+"cd_restart" = "Restart container";
+"cd_start" = "Start container";
+
+/* logs */
+"logs_filter_all" = "All";
+"logs_filter_issues" = "Issues";
+
+/* errors / toasts */
+"error_offline" = "No relay connection";
+"error_timeout" = "Relay did not respond within 10 s";
+"error_action_failed" = "Action failed: %@";
+"alert_toast" = "%@: %@";
+"alert_server_offline" = "Server %@ is unreachable";
+"alert_server_online" = "Server %@ is back online";
+
+/* notifications */
+"notif_relay_down_title" = "WatchDeck: relay unreachable";
+"notif_relay_down_body" = "Servers may be down. Reconnecting…";

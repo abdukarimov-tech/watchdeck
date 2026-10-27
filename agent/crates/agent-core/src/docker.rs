@@ -76,6 +76,27 @@ impl DockerClient {
         }
     }
 
+    /// Одноразовая статистика контейнера (/stats?stream=false).
+    pub async fn stats(&self, id: &str) -> Result<ContainerStats> {
+        let res = self
+            .request(Method::GET, &format!("/containers/{id}/stats?stream=false"))
+            .await
+            .context("docker: stats")?;
+        let body = hyper::body::to_bytes(res.into_body()).await?;
+        let v: serde_json::Value = serde_json::from_slice(&body)?;
+        let cpu_delta = v["cpu_stats"]["cpu_usage"]["total_usage"].as_f64().unwrap_or(0.0)
+            - v["precpu_stats"]["cpu_usage"]["total_usage"].as_f64().unwrap_or(0.0);
+        let sys_delta = v["cpu_stats"]["system_cpu_usage"].as_f64().unwrap_or(0.0)
+            - v["precpu_stats"]["system_cpu_usage"].as_f64().unwrap_or(0.0);
+        let online = v["cpu_stats"]["online_cpus"].as_f64().unwrap_or(1.0);
+        let cpu_percent = if sys_delta > 0.0 { (cpu_delta / sys_delta) * online * 100.0 } else { 0.0 };
+        Ok(ContainerStats {
+            cpu_percent,
+            mem_used: v["memory_stats"]["usage"].as_u64().unwrap_or(0),
+            mem_limit: v["memory_stats"]["limit"].as_u64().unwrap_or(0),
+        })
+    }
+
     /// Стриминг логов контейнера (docker logs с follow).
     pub async fn logs(
         &self,
@@ -152,6 +173,12 @@ impl DockerClient {
     }
 }
 
+pub struct ContainerStats {
+    pub cpu_percent: f64,
+    pub mem_used: u64,
+    pub mem_limit: u64,
+}
+
 pub fn parse_containers_json(json: &str) -> Result<Vec<Container>> {
     let items: Vec<serde_json::Value> = serde_json::from_str(json)?;
     Ok(items
@@ -175,6 +202,10 @@ pub fn parse_containers_json(json: &str) -> Result<Vec<Container>> {
                 state: state_from_str(v["State"].as_str().unwrap_or_default()),
                 status: v["Status"].as_str().unwrap_or_default().into(),
                 created_unix: v["Created"].as_i64().unwrap_or_default(),
+                // статистика заполняется отдельным вызовом /stats
+                cpu_percent: 0.0,
+                mem_used: 0,
+                mem_limit: 0,
             }
         })
         .collect())

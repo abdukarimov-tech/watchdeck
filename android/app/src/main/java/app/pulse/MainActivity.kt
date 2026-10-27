@@ -129,6 +129,13 @@ class MainActivity : FragmentActivity() {
                         onBack = { detailsServerId = null },
                     )
 
+                    // форма добавления (с FAB): после установки закрывается сама
+                    showOnboarding -> OnboardingScreen(
+                        vm = vm,
+                        onFinished = { showOnboarding = false },
+                        onClose = { showOnboarding = false },
+                    )
+
                     // список серверов; без серверов — онбординг с SSH-установкой
                     servers.isEmpty() -> OnboardingScreen(vm = vm, onFinished = {})
 

@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>servers_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@servers@</string>
+		<key>servers</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d сервер</string>
+			<key>few</key>
+			<string>%d сервера</string>
+			<key>many</key>
+			<string>%d серверов</string>
+			<key>other</key>
+			<string>%d сервера</string>
+		</dict>
+	</dict>
+	<key>agents_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@agents@</string>
+		<key>agents</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d агент</string>
+			<key>few</key>
+			<string>%d агента</string>
+			<key>many</key>
+			<string>%d агентов</string>
+			<key>other</key>
+			<string>%d агента</string>
+		</dict>
+	</dict>
+	<key>cpu_cores</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@cores@</string>
+		<key>cores</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d ядро</string>
+			<key>few</key>
+			<string>%d ядра</string>
+			<key>many</key>
+			<string>%d ядер</string>
+			<key>other</key>
+			<string>%d ядра</string>
+		</dict>
+	</dict>
+</dict>
+</plist>

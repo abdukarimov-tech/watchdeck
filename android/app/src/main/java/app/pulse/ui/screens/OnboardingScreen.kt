@@ -68,6 +68,7 @@ fun OnboardingScreen(vm: PulseViewModel, onFinished: () -> Unit = {}) {
     var error by remember { mutableStateOf<String?>(null) }
 
     val installState by vm.installState.collectAsState()
+    val hostKeyPrompt by vm.hostKeyPrompt.collectAsState()
     val servers by vm.servers.collectAsState()
     val running = installState != null && installState?.done == false
     val demoLabel = stringResource(R.string.demo_label)

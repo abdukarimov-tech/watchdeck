@@ -91,6 +91,9 @@
     <string name="install_button">Установить агента и подключиться</string>
     <string name="install_running">Установка агента…</string>
     <string name="install_error_prefix">Ошибка установки</string>
+    <string name="ssh_host_key_title">Проверьте ключ сервера</string>
+    <string name="ssh_host_key_text">Первое подключение к этому серверу. Сверьте отпечаток ключа по доверенному каналу (например, `ssh-keyscan` с машины, которой вы доверяете) и подтвердите.</string>
+    <string name="ssh_host_key_confirm">Доверять и подключиться</string>
 
     <!-- dashboard -->
     <string name="dashboard_loading">Загрузка метрик…</string>

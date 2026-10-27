@@ -88,6 +88,25 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
     data class InstallState(val lines: List<String>, val done: Boolean, val error: String?)
     val installState = MutableStateFlow<InstallState?>(null)
 
+    /** Ожидающее подтверждение отпечатка SSH-ключа сервера. */
+    data class HostKeyPrompt(val fingerprint: String, val decision: kotlinx.coroutines.CompletableDeferred<Boolean>)
+    val hostKeyPrompt = MutableStateFlow<HostKeyPrompt?>(null)
+
+    fun confirmHostKey(accepted: Boolean) {
+        val prompt = hostKeyPrompt.value
+        prompt?.decision?.complete(accepted)
+        hostKeyPrompt.value = null
+        if (!accepted) {
+            installState.update {
+                PulseViewModel.InstallState(
+                    lines = (it?.lines ?: emptyList()) + "[error] cancelled: host key rejected",
+                    done = true,
+                    error = "host key rejected",
+                )
+            }
+        }
+    }
+
     /**
      * Полная установка: выпуск токенов через админ-API релея, SSH-подключение
      * и установка агента, добавление сервера в приложение.
@@ -122,6 +141,11 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
                     SshInstaller.SshConfig(host, port, username, auth),
                     relayUrl,
                     agentToken,
+                    verifyHostKey = { fingerprint ->
+                        val decision = kotlinx.coroutines.CompletableDeferred<Boolean>()
+                        hostKeyPrompt.value = HostKeyPrompt(fingerprint, decision)
+                        decision.await().also { hostKeyPrompt.value = null }
+                    },
                 )
                 installState.value = InstallState(lines.toList(), done = true, error = null)
                 addServer(relayUrl, clientToken)

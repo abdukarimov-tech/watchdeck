@@ -87,6 +87,9 @@
     <string name="install_button">Install agent and connect</string>
     <string name="install_running">Installing agent…</string>
     <string name="install_error_prefix">Installation failed</string>
+    <string name="ssh_host_key_title">Verify server key</string>
+    <string name="ssh_host_key_text">First connection to this server. Check the key fingerprint through a trusted channel (e.g. run `ssh-keyscan` from a machine you trust) and confirm.</string>
+    <string name="ssh_host_key_confirm">Trust and connect</string>
 
     <!-- dashboard -->
     <string name="dashboard_loading">Loading metrics…</string>

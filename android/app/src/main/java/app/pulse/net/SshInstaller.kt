@@ -29,13 +29,34 @@ class SshInstaller(private val onLog: (String) -> Unit) {
         }
     }
 
-    suspend fun install(cfg: SshConfig, relayUrl: String, agentToken: String): Unit =
+    suspend fun install(
+        cfg: SshConfig,
+        relayUrl: String,
+        agentToken: String,
+        // приглашение подтвердить отпечаток ключа сервера (true — доверять)
+        verifyHostKey: suspend (fingerprint: String) -> Boolean,
+    ): Unit =
         withContext(Dispatchers.IO) {
             val ssh = SSHClient().apply {
                 connectTimeout = 15_000
                 timeout = 30_000
-                // TODO(security): подтверждать отпечаток хоста пользователем
-                addHostKeyVerifier(net.schmizz.sshj.transport.verification.PromiscuousVerifier())
+                addHostKeyVerifier(object : net.schmizz.sshj.transport.verification.HostKeyVerifier {
+                    override fun verify(hostname: String, port: Int, key: java.security.PublicKey): Boolean {
+                        val digest = java.security.MessageDigest.getInstance("SHA-256")
+                            .digest(key.encoded)
+                        val fingerprint = "SHA256:" + android.util.Base64.encodeToString(
+                            digest,
+                            android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING,
+                        )
+                        onLog("host key ($hostname): $fingerprint")
+                        // блокируем transport-поток до решения пользователя — как в OpenSSH
+                        return kotlinx.coroutines.runBlocking {
+                            kotlinx.coroutines.withTimeout(120_000) { verifyHostKey(fingerprint) }
+                        }
+                    }
+
+                    override fun findExistingAlgorithms(hostname: String, port: Int): List<String> = emptyList()
+                })
             }
             try {
                 onLog("connecting to ${cfg.host}:${cfg.port}")

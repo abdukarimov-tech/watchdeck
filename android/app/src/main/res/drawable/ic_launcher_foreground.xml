@@ -4,22 +4,39 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Кочегарка: пламя в дверце топки (adaptive foreground, safe zone центр) -->
-    <path
-        android:fillColor="#171B24"
-        android:pathData="M32,86 L32,56 C32,40.5 41,30 54,30 C67,30 76,40.5 76,56 L76,86 Z" />
+    <!-- Watchdeck / Мостик: вахтенный фонарь (adaptive foreground) -->
+    <!-- лучи света -->
     <path
         android:fillColor="#00000000"
+        android:strokeColor="#4FC3F7"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M28,37 L19,28" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#4FC3F7"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M80,37 L89,28" />
+    <!-- корпус фонаря -->
+    <path
+        android:fillColor="#171B24"
         android:strokeColor="#333B4C"
-        android:strokeWidth="2.5"
-        android:pathData="M32,86 L32,56 C32,40.5 41,30 54,30 C67,30 76,40.5 76,56 L76,86 Z" />
-    <path
-        android:fillColor="#FF8A3D"
-        android:pathData="M54,38 C57.5,44.5 64.5,49.5 66,58 C67.5,66.5 62,74.5 54,75.5 C46,74.5 40.5,66.5 42,58 C43.5,49.5 50.5,44.5 54,38 Z" />
-    <path
-        android:fillColor="#FFD54F"
-        android:pathData="M54,52 C56,55.5 59.5,58 60,62.5 C60.5,67 57.5,70.5 54,71 C50.5,70.5 47.5,67 48,62.5 C48.5,58 52,55.5 54,52 Z" />
+        android:strokeWidth="3"
+        android:pathData="M38,40 L70,40 L72,76 C72,78.2 70.2,80 68,80 L40,80 C37.8,80 36,78.2 36,76 Z" />
+    <!-- верхняя крышка -->
     <path
         android:fillColor="#333B4C"
-        android:pathData="M38,80 m0,-1.6 a1.6,1.6 0 0 1 1.6,-1.6 L68.4,76.8 a1.6,1.6 0 0 1 1.6,1.6 L70,80 a1.6,1.6 0 0 1 -1.6,1.6 L39.6,81.6 a1.6,1.6 0 0 1 -1.6,-1.6 Z" />
+        android:pathData="M34,40 L74,40 L70,32 L38,32 Z" />
+    <!-- основание -->
+    <path
+        android:fillColor="#333B4C"
+        android:pathData="M34,83 L74,83 C74,84.7 72.7,86 71,86 L37,86 C35.3,86 34,84.7 34,83 Z" />
+    <!-- пламя -->
+    <path
+        android:fillColor="#FF8A3D"
+        android:pathData="M54,46 C56.5,51 62,54.5 63,61 C64,68 59.5,74 54,75 C48.5,74 44,68 45,61 C46,54.5 51.5,51 54,46 Z" />
+    <path
+        android:fillColor="#FFD54F"
+        android:pathData="M54,58 C55.5,60.5 58,62.5 58.3,65.5 C58.6,69 56.5,71.5 54,72 C51.5,71.5 49.4,69 49.7,65.5 C50,62.5 52.5,60.5 54,58 Z" />
 </vector>

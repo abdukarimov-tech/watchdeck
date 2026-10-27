@@ -184,7 +184,7 @@ class PulseConnection(
                 val result = if (msg.containerActionResult.ok) {
                     Result.success(Unit)
                 } else {
-                    Result.failure(IllegalStateException(msg.containerActionResult.error.ifEmpty { "action failed" }))
+                    Result.failure(PulseError.Relay(msg.containerActionResult.error.ifEmpty { "action failed" }))
                 }
                 pendingActions.remove(msg.id)?.complete(result)
             }
@@ -249,10 +249,10 @@ class PulseConnection(
         )
         if (!sent) {
             pendingActions.remove(id)
-            return Result.failure(IllegalStateException("нет соединения с релеем"))
+            return Result.failure(PulseError.Offline)
         }
         return withTimeoutOrNull(10_000) { deferred.await() }
-            ?: Result.failure(TimeoutException("релей не ответил за 10 с"))
+            ?: Result.failure(PulseError.Timeout)
     }
 
     fun requestLogs(agentId: String, containerId: String) {

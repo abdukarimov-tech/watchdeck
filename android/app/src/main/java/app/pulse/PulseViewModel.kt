@@ -1,5 +1,7 @@
 package app.pulse
 
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -10,6 +12,7 @@ import app.pulse.data.MetricsUi
 import app.pulse.data.PulseRepository
 import app.pulse.data.combineSelected
 import app.pulse.net.ConnState
+import app.pulse.net.PulseError
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,7 +20,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
-class PulseViewModel(private val repo: PulseRepository) : ViewModel() {
+/**
+ * Экраны живут на интерфейсе [PulseRepository] (живой WS или демо-мок).
+ * Локализация тостов — через строковые ресурсы по локали устройства.
+ */
+class PulseViewModel(
+    application: Application,
+    private val repo: PulseRepository,
+) : AndroidViewModel(application) {
 
     val connectionState: StateFlow<ConnState> = repo.connectionState
     val agents: StateFlow<Map<String, String>> = repo.agents
@@ -49,13 +59,17 @@ class PulseViewModel(private val repo: PulseRepository) : ViewModel() {
                 val alert = list.firstOrNull() ?: return@collect
                 when (alert.kind) {
                     "CONTAINER_DIED", "OOM" ->
-                        toasts.emit("${alert.containerName}: ${alert.message.ifEmpty { alert.kind }}")
+                        toasts.emit(
+                            getApplication<Application>().getString(
+                                R.string.alert_toast,
+                                alert.containerName,
+                                alert.message.ifEmpty { alert.kind },
+                            ),
+                        )
                 }
             }
         }
     }
-
-    private var lastLogsContainer: String? = null
 
     fun selectAgent(agentId: String) {
         if (selectedAgent.value != agentId) {
@@ -64,6 +78,8 @@ class PulseViewModel(private val repo: PulseRepository) : ViewModel() {
             lastLogsContainer?.let { repo.requestLogs(agentId, it) }
         }
     }
+
+    private var lastLogsContainer: String? = null
 
     fun startLogs(containerId: String) {
         lastLogsContainer = containerId
@@ -75,7 +91,16 @@ class PulseViewModel(private val repo: PulseRepository) : ViewModel() {
         val agent = selectedAgent.value ?: return
         viewModelScope.launch {
             repo.action(agent, containerId, kind)
-                .onFailure { toasts.emit("Ошибка: ${it.message}") }
+                .onFailure { e ->
+                    val app = getApplication<Application>()
+                    val message = when (e) {
+                        is PulseError.Offline -> app.getString(R.string.error_offline)
+                        is PulseError.Timeout -> app.getString(R.string.error_timeout)
+                        is PulseError.Relay -> app.getString(R.string.error_action_failed, e.reason)
+                        else -> e.message ?: "error"
+                    }
+                    toasts.emit(message)
+                }
         }
     }
 
@@ -83,8 +108,12 @@ class PulseViewModel(private val repo: PulseRepository) : ViewModel() {
         repo.close()
     }
 
-    class Factory(private val repo: PulseRepository) : ViewModelProvider.Factory {
+    class Factory(
+        private val app: Application,
+        private val repo: PulseRepository,
+    ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T = PulseViewModel(repo) as T
+        override fun <T : ViewModel> create(modelClass: Class<T>): T =
+            PulseViewModel(app, repo) as T
     }
 }

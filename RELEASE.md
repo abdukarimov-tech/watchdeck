@@ -69,8 +69,7 @@ install.sh: скачивает бинарник, создает пользова
 
 ## 3. FCM push
 
-1. [Firebase Console] → создать проект → добавить Android-приложение `app.pulse`.
-2. Скачать `google-services.json` → `android/app/google-services.json`
+1. [Firebase Console] → создать проект → добавить Android-приложение `app.pulse`.2. Скачать `google-services.json` → `android/app/google-services.json`
    (в .gitignore, в CI не попадает).
 3. В `android/app/build.gradle.kts` добавить плагин
    `id("com.google.gms.google-services")` (версия 4.4.2 в root build.gradle.kts).
@@ -99,10 +98,15 @@ cd android && ./gradlew assembleRelease bundleRelease
 ```
 
 Включено: R8 minify + resource shrinking (proguard-rules.pro), targetSdk 36,
-runtime-запрос POST_NOTIFICATIONS (Android 13+), адаптивная иконка.
+runtime-запрос POST_NOTIFICATIONS (Android 13+), адаптивная иконка (+monochrome),
+локализация: EN по умолчанию, RU для локали `ru` (другие языки → EN).
+
+Пуши: релей отправляет data-only FCM — текст уведомления собирается на
+устройстве по локали пользователя (в `PulseMessagingService`), сервер не знает
+язык клиента.
 
 Внутренний тест: Play Console → Internal testing, либо прямой install APK.
-Для стор-скриншотов/ревью без сервера — «Демо-режим» на экране онбординга.
+Для стор-скриншотов/ревью без сервера — «Demo mode» на экране онбординга.
 
 Unit-тесты: `./gradlew testDebugUnitTest` (форматирование, маппинг протокола).
 

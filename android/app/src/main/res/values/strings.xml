@@ -1,3 +1,55 @@
 <resources>
-    <string name="app_name">Кочегарка</string>
+    <string name="app_name">Watchdeck</string>
+
+    <!-- connection banner -->
+    <string name="conn_connecting">Connecting to relay…</string>
+    <string name="conn_offline">No connection — reconnecting…</string>
+
+    <!-- tabs -->
+    <string name="tab_dashboard">Server</string>
+    <string name="tab_containers">Containers</string>
+    <string name="tab_logs">Logs</string>
+
+    <!-- onboarding -->
+    <string name="onboarding_tagline">Keep watch over your fleet — CPU, containers, logs and downtime alerts, right from your pocket.</string>
+    <string name="onboarding_relay_url">Relay address</string>
+    <string name="onboarding_relay_url_hint">wss://relay.example.com</string>
+    <string name="onboarding_token">Client token</string>
+    <string name="onboarding_demo">Demo mode (no server)</string>
+    <string name="onboarding_error_url">Address must start with wss://</string>
+    <string name="onboarding_error_token">Enter the client token</string>
+    <string name="onboarding_connect">Connect</string>
+    <string name="onboarding_hint_title">Tokens are issued on the relay server:</string>
+    <string name="onboarding_privacy">The token is stored only on this device, encrypted with Android Keystore (StrongBox when available). It never leaves the device.</string>
+
+    <!-- dashboard -->
+    <string name="dashboard_loading">Loading metrics…</string>
+    <string name="dashboard_cpu">CPU</string>
+    <string name="dashboard_memory">Memory</string>
+    <string name="dashboard_network_uptime">Network · uptime %1$s</string>
+    <plurals name="cpu_cores">
+        <item quantity="one">%d core</item>
+        <item quantity="other">%d cores</item>
+    </plurals>
+
+    <!-- containers -->
+    <string name="containers_restart_title">Restart %1$s?</string>
+    <string name="containers_restart_body">The container will be unavailable for a few seconds.</string>
+    <string name="containers_restart_confirm">Restart</string>
+    <string name="containers_cancel">Cancel</string>
+    <string name="cd_restart">Restart container</string>
+    <string name="cd_start">Start container</string>
+
+    <!-- errors / toasts -->
+    <string name="error_action_failed">Action failed: %1$s</string>
+    <string name="error_offline">No relay connection</string>
+    <string name="error_timeout">Relay did not respond within 10 s</string>
+    <string name="alert_toast">%1$s: %2$s</string>
+
+    <!-- alerts / notifications (built client-side from relay data messages) -->
+    <string name="alert_container_died">Container %1$s went down</string>
+    <string name="alert_oom">Container %1$s: out of memory</string>
+    <string name="alert_generic">Event on server %1$s</string>
+    <string name="alert_body_suffix">%1$s · server %2$s</string>
+    <string name="notif_channel_name">Server alerts</string>
 </resources>

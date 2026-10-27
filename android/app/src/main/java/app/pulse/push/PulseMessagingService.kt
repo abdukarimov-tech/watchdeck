@@ -9,11 +9,14 @@ import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import app.pulse.MainActivity
+import app.pulse.R
 
 /**
- * Прием пушей от релея через FCM (упал контейнер / OOM). Для реальной работы
- * нужен Firebase-проект и google-services.json (см. README) — до этого класс
- * компилируется, но Firebase не инициализируется.
+ * Прием пушей от релея через FCM. Релей отправляет data-only сообщение
+ * {kind, container, agent_id, message} — текст уведомления собирается
+ * на устройстве по локали пользователя (сервер не знает язык клиента).
+ *
+ * Для реальной работы нужен Firebase-проект и google-services.json (см. RELEASE.md).
  */
 class PulseMessagingService : FirebaseMessagingService() {
 
@@ -22,15 +25,22 @@ class PulseMessagingService : FirebaseMessagingService() {
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
-        val container = message.data["container"] ?: "контейнер"
-        val kind = message.data["kind"] ?: ""
-        val title = message.notification?.title
-            ?: when (kind) {
-                "CONTAINER_DIED" -> "Контейнер $container упал"
-                "OOM" -> "Контейнер $container: нехватка памяти"
-                else -> "Событие на сервере"
-            }
-        val body = message.notification?.body ?: message.data["message"].orEmpty()
+        val data = message.data
+        val container = data["container"] ?: return
+        val kind = data["kind"] ?: ""
+        val agentId = data["agent_id"].orEmpty()
+        val detail = data["message"].orEmpty()
+
+        val title = when (kind) {
+            "CONTAINER_DIED" -> getString(R.string.alert_container_died, container)
+            "OOM" -> getString(R.string.alert_oom, container)
+            else -> getString(R.string.alert_generic, agentId.ifEmpty { container })
+        }
+        val body = if (detail.isEmpty() || agentId.isEmpty()) {
+            detail
+        } else {
+            getString(R.string.alert_body_suffix, detail, agentId)
+        }
         showNotification(title, body)
     }
 
@@ -38,7 +48,7 @@ class PulseMessagingService : FirebaseMessagingService() {
         val manager = getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             manager.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "События серверов", NotificationManager.IMPORTANCE_HIGH),
+                NotificationChannel(CHANNEL_ID, getString(R.string.notif_channel_name), NotificationManager.IMPORTANCE_HIGH),
             )
         }
         val intent = PendingIntent.getActivity(

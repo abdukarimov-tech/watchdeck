@@ -16,7 +16,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import app.pulse.R
 import app.pulse.data.MetricsUi
 import app.pulse.data.formatBytes
 import app.pulse.data.formatUptime
@@ -24,7 +27,7 @@ import app.pulse.data.formatUptime
 @Composable
 fun DashboardScreen(metrics: MetricsUi?) {
     if (metrics == null) {
-        Text("Загрузка метрик...", modifier = Modifier.padding(24.dp))
+        Text(stringResource(R.string.dashboard_loading), modifier = Modifier.padding(24.dp))
         return
     }
     LazyColumn(
@@ -34,16 +37,16 @@ fun DashboardScreen(metrics: MetricsUi?) {
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("CPU", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.dashboard_cpu), style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(8.dp))
                     Row {
                         Text(
-                            "%.0f%%".format(metrics.cpuPercent),
+                            String.format(java.util.Locale.US, "%.0f%%", metrics.cpuPercent),
                             style = MaterialTheme.typography.headlineMedium,
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            "· ${metrics.cpuCores} ядер",
+                            "· " + pluralStringResource(R.plurals.cpu_cores, metrics.cpuCores, metrics.cpuCores),
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.padding(top = 14.dp),
                         )
@@ -60,7 +63,7 @@ fun DashboardScreen(metrics: MetricsUi?) {
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("Память", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.dashboard_memory), style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(8.dp))
                     Text(
                         "${formatBytes(metrics.memUsedBytes)} / ${formatBytes(metrics.memTotalBytes)}",
@@ -80,10 +83,13 @@ fun DashboardScreen(metrics: MetricsUi?) {
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("Сеть · uptime ${formatUptime(metrics.uptimeSeconds)}", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        stringResource(R.string.dashboard_network_uptime, formatUptime(metrics.uptimeSeconds)),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "↓ ${formatBytes(metrics.rxBytesPerSec)}/с   ↑ ${formatBytes(metrics.txBytesPerSec)}/с",
+                        "↓ ${formatBytes(metrics.rxBytesPerSec)}/s   ↑ ${formatBytes(metrics.txBytesPerSec)}/s",
                         style = MaterialTheme.typography.bodyLarge,
                     )
                 }

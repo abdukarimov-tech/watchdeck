@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -18,8 +19,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import app.pulse.R
 
 @Composable
 fun OnboardingScreen(onDone: (relayUrl: String, token: String, demo: Boolean) -> Unit) {
@@ -27,6 +31,8 @@ fun OnboardingScreen(onDone: (relayUrl: String, token: String, demo: Boolean) ->
     var token by remember { mutableStateOf("") }
     var demo by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    val errorUrl = stringResource(R.string.onboarding_error_url)
+    val errorToken = stringResource(R.string.onboarding_error_token)
 
     Column(
         modifier = Modifier
@@ -34,19 +40,18 @@ fun OnboardingScreen(onDone: (relayUrl: String, token: String, demo: Boolean) ->
             .padding(24.dp),
         verticalArrangement = Arrangement.Center,
     ) {
-        Text("Pulse", style = MaterialTheme.typography.headlineLarge)
+        Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineLarge)
         Spacer(Modifier.height(8.dp))
         Text(
-            "Подключитесь к вашему релею. Токен хранится только на устройстве " +
-                "в Android Keystore (StrongBox при наличии).",
+            stringResource(R.string.onboarding_tagline),
             style = MaterialTheme.typography.bodyMedium,
         )
         Spacer(Modifier.height(24.dp))
         OutlinedTextField(
             value = url,
             onValueChange = { url = it; error = null },
-            label = { Text("Адрес релея") },
-            placeholder = { Text("wss://relay.example.com") },
+            label = { Text(stringResource(R.string.onboarding_relay_url)) },
+            placeholder = { Text(stringResource(R.string.onboarding_relay_url_hint)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -54,14 +59,14 @@ fun OnboardingScreen(onDone: (relayUrl: String, token: String, demo: Boolean) ->
         OutlinedTextField(
             value = token,
             onValueChange = { token = it; error = null },
-            label = { Text("Токен клиента") },
+            label = { Text(stringResource(R.string.onboarding_token)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(12.dp))
-        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-            androidx.compose.material3.Checkbox(checked = demo, onCheckedChange = { demo = it })
-            Text("Демо-режим (без сервера)", style = MaterialTheme.typography.bodyMedium)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(checked = demo, onCheckedChange = { demo = it })
+            Text(stringResource(R.string.onboarding_demo), style = MaterialTheme.typography.bodyMedium)
         }
         error?.let {
             Spacer(Modifier.height(8.dp))
@@ -75,22 +80,29 @@ fun OnboardingScreen(onDone: (relayUrl: String, token: String, demo: Boolean) ->
                     return@Button
                 }
                 when {
-                    !url.startsWith("wss://") && !url.startsWith("ws://") ->
-                        error = "Адрес должен начинаться с wss://"
-                    token.isBlank() -> error = "Введите токен"
+                    !url.startsWith("wss://") && !url.startsWith("ws://") -> error = errorUrl
+                    token.isBlank() -> error = errorToken
                     else -> onDone(url.trim(), token.trim(), false)
                 }
             },
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text("Подключиться")
+            Text(stringResource(R.string.onboarding_connect))
         }
         Spacer(Modifier.height(16.dp))
         Card {
             Column(Modifier.padding(12.dp)) {
-                Text("Токен выпускается на сервере релея:", style = MaterialTheme.typography.bodySmall)
+                Text(
+                    stringResource(R.string.onboarding_hint_title),
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 Text(
                     "curl -XPOST relay.example.com/api/tokens \\\n  -H 'X-Admin-Token: ...' \\\n  -d '{\"label\":\"phone\",\"role\":\"client\"}'",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    stringResource(R.string.onboarding_privacy),
                     style = MaterialTheme.typography.bodySmall,
                 )
             }

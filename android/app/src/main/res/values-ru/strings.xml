@@ -1,0 +1,57 @@
+<resources>
+    <string name="app_name">Мостик</string>
+
+    <!-- connection banner -->
+    <string name="conn_connecting">Подключение к релею…</string>
+    <string name="conn_offline">Нет соединения — переподключение…</string>
+
+    <!-- tabs -->
+    <string name="tab_dashboard">Сервер</string>
+    <string name="tab_containers">Контейнеры</string>
+    <string name="tab_logs">Логи</string>
+
+    <!-- onboarding -->
+    <string name="onboarding_tagline">Держите вахту над своим флотом: CPU, контейнеры, логи и алерты о падениях — прямо из кармана.</string>
+    <string name="onboarding_relay_url">Адрес релея</string>
+    <string name="onboarding_relay_url_hint">wss://relay.example.com</string>
+    <string name="onboarding_token">Токен клиента</string>
+    <string name="onboarding_demo">Демо-режим (без сервера)</string>
+    <string name="onboarding_error_url">Адрес должен начинаться с wss://</string>
+    <string name="onboarding_error_token">Введите токен</string>
+    <string name="onboarding_connect">Подключиться</string>
+    <string name="onboarding_hint_title">Токен выпускается на сервере релея:</string>
+    <string name="onboarding_privacy">Токен хранится только на этом устройстве, зашифрован Android Keystore (StrongBox при наличии) и никогда его не покидает.</string>
+
+    <!-- dashboard -->
+    <string name="dashboard_loading">Загрузка метрик…</string>
+    <string name="dashboard_cpu">Процессор</string>
+    <string name="dashboard_memory">Память</string>
+    <string name="dashboard_network_uptime">Сеть · аптайм %1$s</string>
+    <plurals name="cpu_cores">
+        <item quantity="one">%d ядро</item>
+        <item quantity="few">%d ядра</item>
+        <item quantity="many">%d ядер</item>
+        <item quantity="other">%d ядер</item>
+    </plurals>
+
+    <!-- containers -->
+    <string name="containers_restart_title">Перезапустить %1$s?</string>
+    <string name="containers_restart_body">Контейнер будет недоступен на несколько секунд.</string>
+    <string name="containers_restart_confirm">Перезапустить</string>
+    <string name="containers_cancel">Отмена</string>
+    <string name="cd_restart">Перезапустить контейнер</string>
+    <string name="cd_start">Запустить контейнер</string>
+
+    <!-- errors / toasts -->
+    <string name="error_action_failed">Ошибка: %1$s</string>
+    <string name="error_offline">Нет соединения с релеем</string>
+    <string name="error_timeout">Релей не ответил за 10 с</string>
+    <string name="alert_toast">%1$s: %2$s</string>
+
+    <!-- alerts / notifications (клиент собирает из data-сообщений релея) -->
+    <string name="alert_container_died">Контейнер %1$s упал</string>
+    <string name="alert_oom">Контейнер %1$s: нехватка памяти</string>
+    <string name="alert_generic">Событие на сервере %1$s</string>
+    <string name="alert_body_suffix">%1$s · сервер %2$s</string>
+    <string name="notif_channel_name">События серверов</string>
+</resources>

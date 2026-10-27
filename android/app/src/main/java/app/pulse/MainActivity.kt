@@ -1,6 +1,7 @@
 package app.pulse
 
 import android.Manifest
+import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
@@ -9,13 +10,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.SmartToy
@@ -37,9 +37,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -63,7 +63,10 @@ class MainActivity : ComponentActivity() {
         val prefs = getSharedPreferences("pulse_mode", Context.MODE_PRIVATE)
         val mode = prefs.getString(KEY_MODE, null)
 
-        if (Build.VERSION.SDK_INT >= 33) {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
             registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
                 .launch(Manifest.permission.POST_NOTIFICATIONS)
         }
@@ -71,14 +74,22 @@ class MainActivity : ComponentActivity() {
         setContent {
             PulseTheme {
                 when (mode) {
-                    MODE_DEMO -> MainScreen(vm = viewModel(key = "demo", factory = PulseViewModel.Factory(MockPulseRepository())))
+                    MODE_DEMO -> MainScreen(
+                        vm = viewModel(
+                            key = "demo",
+                            factory = PulseViewModel.Factory(application, MockPulseRepository()),
+                        ),
+                    )
                     MODE_LIVE -> {
                         val config = remember { store.load() }
                         if (config == null) {
                             OnboardingScreen { url, token, demo -> finishOnboarding(prefs, url, token, demo) }
                         } else {
                             MainScreen(
-                                vm = viewModel(key = "live", factory = PulseViewModel.Factory(WsPulseRepository(config))),
+                                vm = viewModel(
+                                    key = "live",
+                                    factory = PulseViewModel.Factory(application, WsPulseRepository(config)),
+                                ),
                             )
                         }
                     }
@@ -105,10 +116,10 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Tab(val title: String) {
-    Dashboard("Сервер"),
-    Containers("Контейнеры"),
-    Logs("Логи"),
+private enum class Tab(val titleRes: Int) {
+    Dashboard(R.string.tab_dashboard),
+    Containers(R.string.tab_containers),
+    Logs(R.string.tab_logs),
 }
 
 @Composable
@@ -119,7 +130,7 @@ private fun MainScreen(vm: PulseViewModel) {
     val metrics by vm.metrics.collectAsState(initial = null)
     val containers by vm.containers.collectAsState(initial = emptyList())
     val logs by vm.logLines.collectAsState()
-    val toasts by remember { mutableStateOf(vm.toasts) }
+    val toasts = remember { vm.toasts }
     val snackbar = remember { SnackbarHostState() }
     var tab by remember { mutableStateOf(Tab.Dashboard) }
 
@@ -133,7 +144,13 @@ private fun MainScreen(vm: PulseViewModel) {
             if (connectionState != ConnState.CONNECTED) {
                 Surface(color = MaterialTheme.colorScheme.errorContainer) {
                     Text(
-                        text = if (connectionState == ConnState.CONNECTING) "Подключение к релею..." else "Нет соединения — переподключение...",
+                        text = stringResource(
+                            if (connectionState == ConnState.CONNECTING) {
+                                R.string.conn_connecting
+                            } else {
+                                R.string.conn_offline
+                            },
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.White,
                         modifier = Modifier
@@ -156,7 +173,7 @@ private fun MainScreen(vm: PulseViewModel) {
                                 Tab.Logs -> Icon(Icons.Filled.Terminal, null)
                             }
                         },
-                        label = { Text(t.title) },
+                        label = { Text(stringResource(t.titleRes)) },
                     )
                 }
             }
@@ -186,8 +203,7 @@ private fun MainScreen(vm: PulseViewModel) {
                     Tab.Dashboard -> DashboardScreen(metrics)
                     Tab.Containers -> ContainersScreen(containers, onAction = vm::action)
                     Tab.Logs -> {
-                        // MVP: стримим логи первого запущенного контейнера;
-                        // выбор контейнера появится вместе с живым WS
+                        // стримим логи первого запущенного контейнера выбранного сервера
                         LaunchedEffect(tab, selectedAgent) {
                             containers.firstOrNull { it.state == "RUNNING" }
                                 ?.let { vm.startLogs(it.id) }

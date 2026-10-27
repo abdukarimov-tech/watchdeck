@@ -62,27 +62,19 @@ impl FcmSender {
                         return;
                     }
                 };
-                let title = match kind {
-                    "CONTAINER_DIED" => format!("Контейнер {container} упал"),
-                    "OOM" => format!("Контейнер {container}: нехватка памяти"),
-                    "CONTAINER_STARTED" => format!("Контейнер {container} запущен"),
-                    _ => format!("Событие на {agent_id}"),
-                };
-                let body = if message.is_empty() {
-                    format!("сервер {agent_id}")
-                } else {
-                    format!("{message} · сервер {agent_id}")
-                };
+                // data-only сообщение: текст уведомления собирает клиент по
+                // своей локали (сервер не знает язык устройства пользователя)
                 for device in device_tokens {
                     let payload = serde_json::json!({
                         "message": {
                             "token": device,
-                            "notification": { "title": title, "body": body },
                             "data": {
                                 "agent_id": agent_id,
                                 "container": container,
                                 "kind": kind,
-                            }
+                                "message": message,
+                            },
+                            "android": { "priority": "high" }
                         }
                     });
                     let url = format!(

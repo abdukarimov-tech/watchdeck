@@ -85,6 +85,9 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
 
     private var lastLogsContainer: String? = null
 
+    /** Плановое отключение (сброс/удаление/переключение) — без уведомления. */
+    private val watchdogSuppressed = java.util.concurrent.atomic.AtomicBoolean(false)
+
     /** Прогресс SSH-установки агента: строки лога + статус. */
     data class InstallState(val lines: List<String>, val done: Boolean, val error: String?)
     val installState = MutableStateFlow<InstallState?>(null)
@@ -113,6 +116,7 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
 
     fun selectServer(id: String) {
         if (activeServerId.value == id) return
+        watchdogSuppressed.set(true)
         serversStore.setActive(id)
         activeServerId.value = id
         displayRepo.value = repos[id]
@@ -129,6 +133,7 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun removeServer(id: String) {
+        watchdogSuppressed.set(true)
         serversStore.remove(id)
         servers.value = serversStore.load()
         repos.remove(id)?.close()
@@ -143,6 +148,7 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Полный сброс: удаляет все серверы и возвращает приложение к онбордингу. */
     fun resetAll() {
+        watchdogSuppressed.set(true)
         repos.values.forEach { it.close() }
         repos.clear()
         serversStore.clear()
@@ -347,7 +353,9 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
             var wasConnected = false
             connectionState.collect { st ->
                 if (wasConnected && st == ConnState.DISCONNECTED) {
-                    postRelayDownNotification(getApplication())
+                    if (!watchdogSuppressed.getAndSet(false)) {
+                        postRelayDownNotification(getApplication())
+                    }
                 }
                 wasConnected = st == ConnState.CONNECTED
             }

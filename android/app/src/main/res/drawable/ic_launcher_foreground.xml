@@ -4,12 +4,22 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- пульс: линия кардиограммы по центру safe zone -->
+    <!-- Кочегарка: пламя в дверце топки (adaptive foreground, safe zone центр) -->
     <path
-        android:pathData="M24,54 L38,54 L44,40 L52,68 L58,48 L63,54 L84,54"
-        android:strokeColor="#4FC3F7"
-        android:strokeWidth="5"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="#00000000" />
+        android:fillColor="#171B24"
+        android:pathData="M32,86 L32,56 C32,40.5 41,30 54,30 C67,30 76,40.5 76,56 L76,86 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#333B4C"
+        android:strokeWidth="2.5"
+        android:pathData="M32,86 L32,56 C32,40.5 41,30 54,30 C67,30 76,40.5 76,56 L76,86 Z" />
+    <path
+        android:fillColor="#FF8A3D"
+        android:pathData="M54,38 C57.5,44.5 64.5,49.5 66,58 C67.5,66.5 62,74.5 54,75.5 C46,74.5 40.5,66.5 42,58 C43.5,49.5 50.5,44.5 54,38 Z" />
+    <path
+        android:fillColor="#FFD54F"
+        android:pathData="M54,52 C56,55.5 59.5,58 60,62.5 C60.5,67 57.5,70.5 54,71 C50.5,70.5 47.5,67 48,62.5 C48.5,58 52,55.5 54,52 Z" />
+    <path
+        android:fillColor="#333B4C"
+        android:pathData="M38,80 m0,-1.6 a1.6,1.6 0 0 1 1.6,-1.6 L68.4,76.8 a1.6,1.6 0 0 1 1.6,1.6 L70,80 a1.6,1.6 0 0 1 -1.6,1.6 L39.6,81.6 a1.6,1.6 0 0 1 -1.6,-1.6 Z" />
 </vector>

@@ -1,8 +1,14 @@
-# Pulse — мониторинг VPS/Docker с телефона
+# Кочегарка (Stokehold) — мониторинг VPS/Docker с телефона
 
 Мобильный клиент (Android) для мониторинга серверов и управления Docker-контейнерами:
 дашборд CPU/RAM/Disk, список контейнеров с перезапуском, стриминг логов с подсветкой
 ошибок и push-уведомления о падении сервисов.
+
+> Название: сервера — топки, DevOps — кочегар. Агент — термопара в топке,
+> релей — машинный телеграф, приложение — пульт кочегарки: пуш «топка погасла»,
+> restart — «подкинуть угля», логи — вахтенный журнал.
+> В коде сохранено рабочее имя `pulse` (package `app.pulse`, relay/agent бинари)
+> — это не видно пользователям и не мешает релизу.
 
 ```
 ┌─────────┐   wss    ┌──────────┐   wss    ┌─────────┐
@@ -87,8 +93,7 @@ protobuf-kotlin-lite классы из `proto/pulse.proto`.
 
 ### Push-уведомления
 
-1. Создайте Firebase-проект, добавьте Android-приложение с package `app.pulse`.
-2. Положите `google-services.json` в `android/app/` и подключите плагин
+1. Создайте Firebase-проект, добавьте Android-приложение с package `app.pulse`.2. Положите `google-services.json` в `android/app/` и подключите плагин
    `com.google.gms.google-services`.
 3. На сервере релея: `PULSE_FCM_PROJECT_ID=<project>` +
    `GOOGLE_APPLICATION_CREDENTIALS=<service-account.json>`.

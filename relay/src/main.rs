@@ -43,8 +43,12 @@ async fn main() -> Result<()> {
 
     // TLS включается переменными PULSE_TLS_CERT/PULSE_TLS_KEY (самоподписанный
     // сертификат генерирует установщик); без них — обычный HTTP.
-    let tls_cert = std::env::var("PULSE_TLS_CERT").ok().filter(|s| !s.is_empty());
-    let tls_key = std::env::var("PULSE_TLS_KEY").ok().filter(|s| !s.is_empty());
+    let tls_cert = std::env::var("PULSE_TLS_CERT")
+        .ok()
+        .filter(|s| !s.is_empty());
+    let tls_key = std::env::var("PULSE_TLS_KEY")
+        .ok()
+        .filter(|s| !s.is_empty());
     match (tls_cert, tls_key) {
         (Some(cert), Some(key)) => {
             let config = axum_server::tls_rustls::RustlsConfig::from_pem_file(cert, key).await?;

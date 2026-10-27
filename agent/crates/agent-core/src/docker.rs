@@ -84,12 +84,22 @@ impl DockerClient {
             .context("docker: stats")?;
         let body = hyper::body::to_bytes(res.into_body()).await?;
         let v: serde_json::Value = serde_json::from_slice(&body)?;
-        let cpu_delta = v["cpu_stats"]["cpu_usage"]["total_usage"].as_f64().unwrap_or(0.0)
-            - v["precpu_stats"]["cpu_usage"]["total_usage"].as_f64().unwrap_or(0.0);
+        let cpu_delta = v["cpu_stats"]["cpu_usage"]["total_usage"]
+            .as_f64()
+            .unwrap_or(0.0)
+            - v["precpu_stats"]["cpu_usage"]["total_usage"]
+                .as_f64()
+                .unwrap_or(0.0);
         let sys_delta = v["cpu_stats"]["system_cpu_usage"].as_f64().unwrap_or(0.0)
-            - v["precpu_stats"]["system_cpu_usage"].as_f64().unwrap_or(0.0);
+            - v["precpu_stats"]["system_cpu_usage"]
+                .as_f64()
+                .unwrap_or(0.0);
         let online = v["cpu_stats"]["online_cpus"].as_f64().unwrap_or(1.0);
-        let cpu_percent = if sys_delta > 0.0 { (cpu_delta / sys_delta) * online * 100.0 } else { 0.0 };
+        let cpu_percent = if sys_delta > 0.0 {
+            (cpu_delta / sys_delta) * online * 100.0
+        } else {
+            0.0
+        };
         Ok(ContainerStats {
             cpu_percent,
             mem_used: v["memory_stats"]["usage"].as_u64().unwrap_or(0),

@@ -82,7 +82,8 @@ impl Db {
             );",
         )?;
         // миграция: колонка revoked для отзыва токенов
-        let _ = conn.execute_batch("ALTER TABLE tokens ADD COLUMN revoked INTEGER NOT NULL DEFAULT 0");
+        let _ =
+            conn.execute_batch("ALTER TABLE tokens ADD COLUMN revoked INTEGER NOT NULL DEFAULT 0");
         Ok(())
     }
 
@@ -114,17 +115,23 @@ impl Db {
 
     pub fn list_tokens(&self) -> Result<Vec<TokenRow>> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare(
-            "SELECT rowid, label, role, revoked FROM tokens ORDER BY created_unix DESC",
-        )?;
+        let mut stmt = conn
+            .prepare("SELECT rowid, label, role, revoked FROM tokens ORDER BY created_unix DESC")?;
         let rows = stmt.query_map([], |r| {
-            Ok(TokenRow { id: r.get(0)?, label: r.get(1)?, role: r.get(2)?, revoked: r.get::<_, i64>(3)? != 0 })
+            Ok(TokenRow {
+                id: r.get(0)?,
+                label: r.get(1)?,
+                role: r.get(2)?,
+                revoked: r.get::<_, i64>(3)? != 0,
+            })
         })?;
         Ok(rows.collect::<std::result::Result<Vec<_>, _>>()?)
     }
 
     pub fn revoke_token(&self, id: i64) -> Result<()> {
-        self.conn.lock().unwrap()
+        self.conn
+            .lock()
+            .unwrap()
             .execute("UPDATE tokens SET revoked = 1 WHERE rowid = ?1", [id])?;
         Ok(())
     }

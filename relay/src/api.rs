@@ -73,7 +73,11 @@ async fn list_agents(
     Ok(Json(
         st.connected_agents()
             .into_iter()
-            .map(|(agent_id, hostname, agent_version)| AgentRow { agent_id, hostname, agent_version })
+            .map(|(agent_id, hostname, agent_version)| AgentRow {
+                agent_id,
+                hostname,
+                agent_version,
+            })
             .collect(),
     ))
 }
@@ -190,7 +194,12 @@ async fn list_tokens(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(
         rows.into_iter()
-            .map(|t| TokenRowRes { id: t.id, label: t.label, role: t.role, revoked: t.revoked })
+            .map(|t| TokenRowRes {
+                id: t.id,
+                label: t.label,
+                role: t.role,
+                revoked: t.revoked,
+            })
             .collect(),
     ))
 }

@@ -127,7 +127,12 @@ impl AppState {
             .iter()
             .filter_map(|e| {
                 let host = self.inner.agent_hosts.get(e.key())?.clone();
-                let version = self.inner.agent_versions.get(e.key()).map(|v| v.clone()).unwrap_or_default();
+                let version = self
+                    .inner
+                    .agent_versions
+                    .get(e.key())
+                    .map(|v| v.clone())
+                    .unwrap_or_default();
                 Some((e.key().clone(), host, version))
             })
             .collect()

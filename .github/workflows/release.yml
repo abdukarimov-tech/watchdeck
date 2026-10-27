@@ -26,7 +26,7 @@ jobs:
       - name: Install cross linkers
         run: |
           sudo apt-get update
-          sudo apt-get install -y musl-tools gcc-aarch64-linux-gnu
+          sudo apt-get install -y musl-tools gcc-aarch64-linux-gnu protobuf-compiler
       - name: Build agent
         run: cargo build --release --target ${{ matrix.target }}
         working-directory: agent
@@ -39,7 +39,7 @@ jobs:
         run: |
           cp agent/target/${{ matrix.target }}/release/pulse-agent pulse-agent-${{ matrix.artifact }}
           cp relay/target/${{ matrix.target }}/release/pulse-relay pulse-relay-${{ matrix.artifact }}
-          sha256sum pulse-agent-${{ matrix.artifact }} pulse-relay-${{ matrix.artifact }} > sha256.txt
+          sha256sum pulse-agent-${{ matrix.artifact }} pulse-relay-${{ matrix.artifact }} > sha256-${{ matrix.artifact }}.txt
         working-directory: .
       - uses: actions/upload-artifact@v4
         with:
@@ -47,7 +47,7 @@ jobs:
           path: |
             pulse-agent-${{ matrix.artifact }}
             pulse-relay-${{ matrix.artifact }}
-            sha256.txt
+            sha256-${{ matrix.artifact }}.txt
 
   android-apk:
     name: Android release APK
@@ -58,7 +58,11 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-      - uses: android-actions/setup-android@v3
+      # setup-android@v3 ломается с cmdline-tools 16.0 на раннере ("Failed to
+      # find package 'tools'"); SDK уже предустановлен на ubuntu-latest —
+      # достаточно принять лицензии
+      - name: Accept Android SDK licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
       - name: Build release (unsigned without secrets)
         run: gradle assembleRelease
         working-directory: android
@@ -69,7 +73,9 @@ jobs:
 
   github-release:
     name: Attach artifacts to GitHub Release
-    needs: [agent-binaries, android-apk]
+    # публикация не зависит от APK: бинарники relay/agent критичны для
+    # bootstrap-установки, APK собирается локально и в Play Console
+    needs: [agent-binaries]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4

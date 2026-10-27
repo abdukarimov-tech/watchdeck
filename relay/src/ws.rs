@@ -103,7 +103,12 @@ async fn agent_socket(st: AppState, agent_id: String, socket: WebSocket) {
         };
         match msg.payload {
             Some(Payload::Hello(hello)) => {
-                st.register_agent(agent_id.clone(), hello.hostname.clone(), hello.agent_version.clone(), tx.clone());
+                st.register_agent(
+                    agent_id.clone(),
+                    hello.hostname.clone(),
+                    hello.agent_version.clone(),
+                    tx.clone(),
+                );
                 info!(%agent_id, hostname = %hello.hostname, "agent hello");
                 notify_event(
                     &st,

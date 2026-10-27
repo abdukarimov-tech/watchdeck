@@ -94,6 +94,8 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     // SSH-клиент для установки агента на сервер из приложения
     implementation("com.hierynomus:sshj:0.38.0")
+    implementation("androidx.biometric:biometric:1.1.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
     implementation("com.google.protobuf:protobuf-kotlin-lite:4.29.3")
     // пуш-сервис; для реальной работы нужен google-services.json (см. README)
     implementation("com.google.firebase:firebase-messaging:24.1.0")

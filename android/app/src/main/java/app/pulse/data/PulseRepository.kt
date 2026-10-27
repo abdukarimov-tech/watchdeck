@@ -25,6 +25,8 @@ interface PulseRepository {
     val connectionState: StateFlow<ConnState>
     /** agent_id -> hostname. */
     val agents: StateFlow<Map<String, String>>
+    /** agent_id -> версия агента (демо — пусто). */
+    val versions: Flow<Map<String, String>>
     val metricsByAgent: StateFlow<Map<String, MetricsUi>>
     val containersByAgent: StateFlow<Map<String, List<ContainerUi>>>
     val logLines: StateFlow<List<LogLineUi>>
@@ -41,6 +43,7 @@ class MockPulseRepository : PulseRepository {
 
     override val connectionState = MutableStateFlow(ConnState.CONNECTED)
     override val agents = MutableStateFlow(mapOf(DEMO_AGENT_ID to "demo-server"))
+    override val versions: Flow<Map<String, String>> = MutableStateFlow(emptyMap())
     override val events = MutableStateFlow(
         listOf(
             AlertUi("CONTAINER_DIED", "batch-worker", "exit code 137", System.currentTimeMillis() / 1000 - 120),

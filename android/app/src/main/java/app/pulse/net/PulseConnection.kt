@@ -56,6 +56,9 @@ fun pulse.v1.Container.toUi(): ContainerUi = ContainerUi(
     image = image,
     state = stateLabel(state),
     status = status,
+    cpuPercent = cpuPercent,
+    memUsedBytes = memUsed,
+    memLimitBytes = memLimit,
 )
 
 fun pulse.v1.LogLine.toUi(): LogLineUi = LogLineUi(tsUnix, stderr, text)
@@ -94,17 +97,41 @@ class PulseConnection(
     private val scope: CoroutineScope,
     baseUrl: String,
     private val token: String,
+    certPem: String = "",
 ) {
-    private val client = OkHttpClient.Builder()
-        // протокольный ping держит NAT/прокси открытыми и детектит мертвый сокет
-        .pingInterval(30, java.util.concurrent.TimeUnit.SECONDS)
-        .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
-        .build()
+    // при самоподписанном сертификате релея пиним его: TLS без доверия к CA
+    private val client: OkHttpClient = run {
+        val base = OkHttpClient.Builder()
+            // протокольный ping держит NAT/прокси открытыми и детектит мертвый сокет
+            .pingInterval(30, java.util.concurrent.TimeUnit.SECONDS)
+            .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        if (certPem.isBlank()) return@run base.build()
+        val cert = runCatching {
+            java.security.cert.CertificateFactory.getInstance("X.509")
+                .generateCertificate(certPem.byteInputStream()) as java.security.cert.X509Certificate
+        }.getOrNull() ?: return@run base.build()
+        val tm = object : javax.net.ssl.X509TrustManager {
+            override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {}
+            override fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {
+                if (chain.none { it == cert }) {
+                    throw java.security.cert.CertificateException("unpinned relay certificate")
+                }
+            }
+            override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf(cert)
+        }
+        val ctx = javax.net.ssl.SSLContext.getInstance("TLS")
+        ctx.init(null, arrayOf(tm), null)
+        base
+            .sslSocketFactory(ctx.socketFactory, tm)
+            .hostnameVerifier { _, _ -> true } // личность релея определяется пинингом сертификата
+            .build()
+    }
 
     private val normalizedBase = baseUrl.trimEnd('/').removeSuffix("/ws/client")
 
     val connectionState = MutableStateFlow(ConnState.DISCONNECTED)
     val agents = MutableStateFlow<Map<String, String>>(emptyMap())
+    val versions = MutableStateFlow<Map<String, String>>(emptyMap())
     val metricsByAgent = MutableStateFlow<Map<String, MetricsUi>>(emptyMap())
     val containersByAgent = MutableStateFlow<Map<String, List<ContainerUi>>>(emptyMap())
     val logLines = MutableStateFlow<List<LogLineUi>>(emptyList())
@@ -219,13 +246,15 @@ class PulseConnection(
                 client.newCall(request).execute().use { resp ->
                     if (!resp.isSuccessful) return@use
                     val arr = JSONArray(resp.body?.string() ?: "[]")
-                    val parsed = buildMap {
-                        for (i in 0 until arr.length()) {
-                            val o = arr.getJSONObject(i)
-                            put(o.getString("agent_id"), o.optString("hostname"))
-                        }
+                    val parsed = mutableMapOf<String, String>()
+                    val vers = mutableMapOf<String, String>()
+                    for (i in 0 until arr.length()) {
+                        val o = arr.getJSONObject(i)
+                        parsed[o.getString("agent_id")] = o.optString("hostname")
+                        vers[o.getString("agent_id")] = o.optString("agent_version")
                     }
                     agents.value = parsed
+                    versions.value = vers
                 }
             }
         }

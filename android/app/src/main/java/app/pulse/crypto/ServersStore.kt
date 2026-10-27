@@ -21,6 +21,8 @@ class ServersStore(context: Context) {
         val relayUrl: String,
         val token: String,
         val adminToken: String = "",
+        val relayCertPem: String = "",     // самоподписанный сертификат релея (pinning)
+        val sshHostKeyFp: String = "",     // отпечаток SSH-ключа сервера (pinning)
         val sshPort: Int = 22,
         val sshUser: String = "root",
         val sshAuthMode: String = "",      // "password" | "key"
@@ -31,6 +33,7 @@ class ServersStore(context: Context) {
     }
 
     private val prefs = context.getSharedPreferences(STORE_NAME, Context.MODE_PRIVATE)
+    private val cipher = KeystoreCipher(context)
 
     fun load(): List<ServerConfig> {
         val raw = prefs.getString(KEY_SERVERS, null) ?: return emptyList()
@@ -42,13 +45,15 @@ class ServersStore(context: Context) {
                     id = o.getString("id"),
                     label = o.optString("label"),
                     relayUrl = o.optString("url"),
-                    token = o.optString("token"),
-                    adminToken = o.optString("admin"),
+                    token = cipher.decrypt(o.optString("token")),
+                    adminToken = cipher.decrypt(o.optString("admin")),
+                    relayCertPem = o.optString("cert"),
+                    sshHostKeyFp = o.optString("ssh_fp"),
                     sshPort = o.optInt("ssh_port", 22),
                     sshUser = o.optString("ssh_user", "root"),
                     sshAuthMode = o.optString("ssh_auth"),
-                    sshSecret = o.optString("ssh_secret"),
-                    sshKeyPass = o.optString("ssh_key_pass"),
+                    sshSecret = cipher.decrypt(o.optString("ssh_secret")),
+                    sshKeyPass = cipher.decrypt(o.optString("ssh_key_pass")),
                 )
             }
         }.getOrDefault(emptyList())
@@ -92,13 +97,15 @@ class ServersStore(context: Context) {
                     .put("id", c.id)
                     .put("label", c.label)
                     .put("url", c.relayUrl)
-                    .put("token", c.token)
-                    .put("admin", c.adminToken)
+                    .put("token", cipher.encrypt(c.token))
+                    .put("admin", cipher.encrypt(c.adminToken))
+                    .put("cert", c.relayCertPem)
+                    .put("ssh_fp", c.sshHostKeyFp)
                     .put("ssh_port", c.sshPort)
                     .put("ssh_user", c.sshUser)
                     .put("ssh_auth", c.sshAuthMode)
-                    .put("ssh_secret", c.sshSecret)
-                    .put("ssh_key_pass", c.sshKeyPass),
+                    .put("ssh_secret", cipher.encrypt(c.sshSecret))
+                    .put("ssh_key_pass", cipher.encrypt(c.sshKeyPass))
             )
         }
         prefs.edit().putString(KEY_SERVERS, arr.toString()).apply()

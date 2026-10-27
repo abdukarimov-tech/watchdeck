@@ -41,6 +41,7 @@
     <string name="settings_terms">Terms of service</string>
     <string name="settings_licenses">Open source licenses</string>
     <string name="settings_licenses_intro">WatchDeck is built with amazing open source software:</string>
+    <string name="settings_security">Security</string>
     <string name="settings_data">Data</string>
     <string name="settings_reset">Reset app data</string>
     <string name="settings_reset_text">This removes all added servers and tokens from this device. The app will restart into onboarding. This cannot be undone.</string>
@@ -87,7 +88,29 @@
     <string name="install_button">Install agent and connect</string>
     <string name="install_running">Installing agent…</string>
     <string name="install_error_prefix">Installation failed</string>
+
+
+
+
+
+
+
+
+
+    <string name="notif_channel_id">server_alerts</string>
     <string name="details_tab_terminal">Terminal</string>
+    <string name="details_update_agent">Update agent</string>
+    <string name="agent_updated">Agent updated</string>
+    <string name="agent_updating">Updating agent…</string>
+    <string name="agent_version_fmt">agent v%1$s</string>
+    <string name="settings_app_lock">App lock (biometrics / PIN)</string>
+    <string name="settings_relay_manage">Relay management</string>
+    <string name="relay_tokens_title">Relay tokens</string>
+    <string name="relay_revoke">Revoke</string>
+    <string name="relay_empty">No tokens on this relay</string>
+    <string name="lock_title">Unlock WatchDeck</string>
+    <string name="lock_subtitle">Access to your servers is protected</string>
+    <string name="lock_retry">Unlock</string>
     <string name="terminal_placeholder">command…</string>
     <string name="terminal_send">Send command</string>
     <string name="terminal_unavailable">Terminal requires a real server connection (not demo mode).</string>
@@ -96,7 +119,6 @@
     <string name="alert_server_online">Server %1$s is back online</string>
     <string name="notif_relay_down_title">WatchDeck: relay unreachable</string>
     <string name="notif_relay_down_body">Servers may be down. Reconnecting…</string>
-    <string name="notif_channel_id">server_alerts</string>
     <string name="ssh_host_key_title">Verify server key</string>
     <string name="ssh_host_key_text">First connection to this server. Check the key fingerprint through a trusted channel (e.g. run `ssh-keyscan` from a machine you trust) and confirm.</string>
     <string name="ssh_host_key_confirm">Trust and connect</string>

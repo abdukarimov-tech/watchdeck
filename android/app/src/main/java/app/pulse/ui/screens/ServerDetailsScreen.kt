@@ -102,6 +102,9 @@ fun ServerDetailsScreen(
     val containersByAgent by remember(repo) {
         repo?.containersByAgent ?: flowOf(emptyMap<String, List<app.pulse.data.ContainerUi>>())
     }.collectAsState(initial = emptyMap())
+    val versions by remember(repo) {
+        repo?.versions ?: flowOf(emptyMap<String, String>())
+    }.collectAsState(initial = emptyMap())
 
     // выбор агента: у активного сервера — общий selectedAgent (синхронно с данными),
     // у неактивного — локальный, только для просмотра
@@ -148,6 +151,15 @@ fun ServerDetailsScreen(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                            val version = selectedAgent?.let { versions[it] }.orEmpty()
+                            if (version.isNotEmpty()) {
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    stringResource(R.string.agent_version_fmt, version),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     }
                 },
@@ -286,6 +298,8 @@ private fun MetricsContent(metrics: MetricsUi?) {
     }
 }
 
+private val QUICK_COMMANDS = listOf("docker ps", "docker stats --no-stream", "df -h", "free -m", "uptime")
+
 @Composable
 private fun TerminalTab(server: app.pulse.crypto.ServersStore.ServerConfig) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -302,7 +316,10 @@ private fun TerminalTab(server: app.pulse.crypto.ServersStore.ServerConfig) {
     var input by remember(server.id) { mutableStateOf("") }
     var connectError by remember(server.id) { mutableStateOf<String?>(null) }
     val terminal = remember(server.id) {
-        SshTerminal { chunk ->
+        SshTerminal(
+            expectedFp = server.sshHostKeyFp,
+            onLog = { msg -> output += msg + "\n" },
+        ) { chunk ->
             // убираем ANSI-управляющие последовательности
             output += ansiRegex.replace(chunk, "")
             if (output.length > MAX_TERMINAL_CHARS) {
@@ -364,6 +381,20 @@ private fun TerminalTab(server: app.pulse.crypto.ServersStore.ServerConfig) {
                         )
                     }
                 }
+            }
+        }
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            QUICK_COMMANDS.forEach { cmd ->
+                FilterChip(
+                    selected = false,
+                    onClick = { terminal.send(cmd) },
+                    label = { Text(cmd, style = MaterialTheme.typography.labelSmall) },
+                )
             }
         }
         Row(

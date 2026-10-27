@@ -10,7 +10,11 @@ import net.schmizz.sshj.transport.verification.HostKeyVerifier
  * Интерактивный SSH-терминал (PTY shell). Подключается напрямую к серверу
  * по сохраненному SSH-доступу, независимо от релея.
  */
-class SshTerminal(private val onOutput: (String) -> Unit) {
+class SshTerminal(
+    private val expectedFp: String = "",
+    private val onLog: (String) -> Unit = {},
+    private val onOutput: (String) -> Unit,
+) {
 
     private var client: SSHClient? = null
     private var shell: net.schmizz.sshj.connection.channel.direct.Session.Shell? = null
@@ -23,9 +27,21 @@ class SshTerminal(private val onOutput: (String) -> Unit) {
         val ssh = SSHClient().apply {
             connectTimeout = 15_000
             timeout = 0 // интерактивная сессия
-            // ключ сервера уже подтвержден при установке агента
+            // пиннинг: сверяем отпечаток, сохраненный при установке агента
             addHostKeyVerifier(object : HostKeyVerifier {
-                override fun verify(hostname: String, port: Int, key: java.security.PublicKey): Boolean = true
+                override fun verify(hostname: String, port: Int, key: java.security.PublicKey): Boolean {
+                    if (expectedFp.isBlank()) return true
+                    val digest = java.security.MessageDigest.getInstance("SHA-256").digest(key.encoded)
+                    val fp = "SHA256:" + android.util.Base64.encodeToString(
+                        digest,
+                        android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING,
+                    )
+                    if (fp != expectedFp) {
+                        onLog("host key MISMATCH: $fp")
+                        return false
+                    }
+                    return true
+                }
 
                 override fun findExistingAlgorithms(hostname: String, port: Int): List<String> = emptyList()
             })

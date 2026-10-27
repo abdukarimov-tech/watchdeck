@@ -33,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -60,7 +61,14 @@ private fun transparentListItem() = ListItemDefaults.colors(containerColor = Col
 /** Корневой экран настроек: о приложении, документы, лицензии, данные. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onBack: () -> Unit, onResetData: () -> Unit) {
+fun SettingsScreen(
+    onBack: () -> Unit,
+    onResetData: () -> Unit,
+    appLockEnabled: Boolean,
+    onAppLockChange: (Boolean) -> Unit,
+    relayManageAvailable: Boolean,
+    onOpenRelayManage: () -> Unit,
+) {
     var document by remember { mutableStateOf<String?>(null) }
     var showLicenses by remember { mutableStateOf(false) }
     var confirmReset by remember { mutableStateOf(false) }
@@ -140,6 +148,25 @@ fun SettingsScreen(onBack: () -> Unit, onResetData: () -> Unit) {
                 }
                 LinkItem(Icons.Filled.Description, stringResource(R.string.settings_licenses)) {
                     showLicenses = true
+                }
+            }
+
+            SectionCard(title = stringResource(R.string.settings_security)) {
+                ListItem(
+                    colors = transparentListItem(),
+                    headlineContent = { Text(stringResource(R.string.settings_app_lock)) },
+                    trailingContent = {
+                        androidx.compose.material3.Switch(
+                            checked = appLockEnabled,
+                            onCheckedChange = onAppLockChange,
+                        )
+                    },
+                    modifier = Modifier.clickable { onAppLockChange(!appLockEnabled) },
+                )
+                if (relayManageAvailable) {
+                    LinkItem(Icons.Filled.Description, stringResource(R.string.settings_relay_manage)) {
+                        onOpenRelayManage()
+                    }
                 }
             }
 

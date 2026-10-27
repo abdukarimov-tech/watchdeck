@@ -32,6 +32,8 @@ struct Inner {
     agents: DashMap<String, OutTx>,
     /// agent_id -> hostname (из Hello)
     agent_hosts: DashMap<String, String>,
+    /// agent_id -> версия агента (из Hello)
+    agent_versions: DashMap<String, String>,
     /// client conn id -> подписка + канал клиенту
     clients: DashMap<u64, ClientConn>,
     next_client_id: std::sync::atomic::AtomicU64,
@@ -47,15 +49,17 @@ impl AppState {
                 agents: DashMap::new(),
                 agent_hosts: DashMap::new(),
                 clients: DashMap::new(),
+                agent_versions: DashMap::new(),
                 next_client_id: std::sync::atomic::AtomicU64::new(0),
             }),
         }
     }
 
-    pub fn register_agent(&self, agent_id: String, hostname: String, tx: OutTx) {
-        tracing::info!(%agent_id, %hostname, "agent connected");
+    pub fn register_agent(&self, agent_id: String, hostname: String, version: String, tx: OutTx) {
+        tracing::info!(%agent_id, %hostname, %version, "agent connected");
         self.inner.agents.insert(agent_id.clone(), tx);
-        self.inner.agent_hosts.insert(agent_id, hostname);
+        self.inner.agent_hosts.insert(agent_id.clone(), hostname);
+        self.inner.agent_versions.insert(agent_id, version);
     }
 
     pub fn unregister_agent(&self, agent_id: &str) {
@@ -64,6 +68,7 @@ impl AppState {
         // в худшем случае мгновение считается офлайн
         self.inner.agents.remove(agent_id);
         self.inner.agent_hosts.remove(agent_id);
+        self.inner.agent_versions.remove(agent_id);
     }
 
     pub fn register_client(&self, filter: Option<String>, tx: OutTx) -> u64 {
@@ -116,15 +121,14 @@ impl AppState {
         }
     }
 
-    pub fn connected_agents(&self) -> Vec<(String, String)> {
+    pub fn connected_agents(&self) -> Vec<(String, String, String)> {
         self.inner
             .agents
             .iter()
             .filter_map(|e| {
-                self.inner
-                    .agent_hosts
-                    .get(e.key())
-                    .map(|h| (e.key().clone(), h.clone()))
+                let host = self.inner.agent_hosts.get(e.key())?.clone();
+                let version = self.inner.agent_versions.get(e.key()).map(|v| v.clone()).unwrap_or_default();
+                Some((e.key().clone(), host, version))
             })
             .collect()
     }
@@ -174,7 +178,7 @@ mod tests {
     fn forward_to_agent_single_agent_no_target() {
         let st = state();
         let (agent_tx, mut agent_rx) = mpsc::unbounded_channel();
-        st.register_agent("only".into(), "host".into(), agent_tx);
+        st.register_agent("only".into(), "host".into(), "0.1.0".into(), agent_tx);
 
         let bytes = {
             let m = container_list_msg();
@@ -191,8 +195,8 @@ mod tests {
         let st = state();
         let (tx1, _rx1) = mpsc::unbounded_channel();
         let (tx2, _rx2) = mpsc::unbounded_channel();
-        st.register_agent("a".into(), "h".into(), tx1);
-        st.register_agent("b".into(), "h".into(), tx2);
+        st.register_agent("a".into(), "h".into(), "0.1.0".into(), tx1);
+        st.register_agent("b".into(), "h".into(), "0.1.0".into(), tx2);
 
         let bytes = {
             let m = container_list_msg();

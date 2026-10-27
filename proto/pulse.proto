@@ -79,6 +79,10 @@ message Container {
   // человекочитаемый статус от Docker ("Up 3 days (healthy)")
   string status = 5;
   int64 created_unix = 6;
+  // статистика заполнивается для RUNNING-контейнеров
+  double cpu_percent = 7;
+  uint64 mem_used = 8;
+  uint64 mem_limit = 9;
 }
 
 enum ContainerState {

@@ -19,6 +19,9 @@ data class ContainerUi(
     val image: String,
     val state: String,
     val status: String,
+    val cpuPercent: Double = 0.0,
+    val memUsedBytes: Long = 0,
+    val memLimitBytes: Long = 0,
 )
 
 data class LogLineUi(val tsUnix: Long, val isStderr: Boolean, val text: String)

@@ -59,7 +59,7 @@ async fn agent_socket(st: AppState, agent_id: String, socket: WebSocket) {
     let (mut sink, mut stream) = socket.split();
     let (tx, mut rx) = mpsc::unbounded_channel::<Vec<u8>>();
 
-    st.register_agent(agent_id.clone(), String::new(), tx.clone());
+    st.register_agent(agent_id.clone(), String::new(), String::new(), tx.clone());
 
     let ack = Msg {
         id: 0,
@@ -103,7 +103,7 @@ async fn agent_socket(st: AppState, agent_id: String, socket: WebSocket) {
         };
         match msg.payload {
             Some(Payload::Hello(hello)) => {
-                st.register_agent(agent_id.clone(), hello.hostname.clone(), tx.clone());
+                st.register_agent(agent_id.clone(), hello.hostname.clone(), hello.agent_version.clone(), tx.clone());
                 info!(%agent_id, hostname = %hello.hostname, "agent hello");
                 notify_event(
                     &st,

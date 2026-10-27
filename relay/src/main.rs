@@ -41,8 +41,23 @@ async fn main() -> Result<()> {
     let state = state::AppState::new(admin_token, database, fcm);
     let app = api::router(state);
 
-    tracing::info!(%bind, version = RELAY_VERSION, "pulse-relay listening");
-    let listener = tokio::net::TcpListener::bind(bind).await?;
-    axum::serve(listener, app).await?;
+    // TLS включается переменными PULSE_TLS_CERT/PULSE_TLS_KEY (самоподписанный
+    // сертификат генерирует установщик); без них — обычный HTTP.
+    let tls_cert = std::env::var("PULSE_TLS_CERT").ok().filter(|s| !s.is_empty());
+    let tls_key = std::env::var("PULSE_TLS_KEY").ok().filter(|s| !s.is_empty());
+    match (tls_cert, tls_key) {
+        (Some(cert), Some(key)) => {
+            let config = axum_server::tls_rustls::RustlsConfig::from_pem_file(cert, key).await?;
+            tracing::info!(%bind, version = RELAY_VERSION, "pulse-relay listening (TLS)");
+            axum_server::bind_rustls(bind, config)
+                .serve(app.into_make_service())
+                .await?;
+        }
+        _ => {
+            tracing::info!(%bind, version = RELAY_VERSION, "pulse-relay listening (no TLS)");
+            let listener = tokio::net::TcpListener::bind(bind).await?;
+            axum::serve(listener, app).await?;
+        }
+    }
     Ok(())
 }

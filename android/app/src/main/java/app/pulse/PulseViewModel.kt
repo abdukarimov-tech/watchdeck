@@ -17,8 +17,10 @@ import app.pulse.data.PulseRepository
 import app.pulse.data.combineSelected
 import app.pulse.net.ConnState
 import app.pulse.net.PulseError
+import app.pulse.net.RelayAdmin
 import app.pulse.net.SshInstaller
 import app.pulse.net.WsPulseRepository
+import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,6 +30,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 /**
  * Сессия приложения поверх списка серверов ([ServersStore]).
@@ -72,6 +75,9 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
     }
     val events: Flow<List<AlertUi>> = displayRepo.flatMapLatest { repo ->
         repo?.events ?: flowOf(emptyList())
+    }
+    val versions: Flow<Map<String, String>> = displayRepo.flatMapLatest { repo ->
+        repo?.versions ?: flowOf(emptyMap())
     }
 
     /** Выбранный агент внутри активного сервера. */
@@ -329,11 +335,14 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
                             is SshInstaller.SshConfig.Auth.Key -> auth.privateKey
                         },
                         sshKeyPass = (auth as? SshInstaller.SshConfig.Auth.Key)?.passphrase ?: "",
+                        relayCertPem = result.relayCertPem,
+                        sshHostKeyFp = result.hostKeyFp,
                     ),
                 )
                 servers.value = serversStore.load()
                 syncRepos()
                 selectServer(servers.value.firstOrNull { it.label == host }?.id ?: servers.value.last().id)
+                registerPushDevices()
             } catch (e: Exception) {
                 val message = when (e) {
                     is net.schmizz.sshj.userauth.UserAuthException ->
@@ -382,6 +391,48 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
         runCatching { manager.notify(RELAY_DOWN_NOTIFICATION_ID, notification) }
     }
 
+    /**
+     * Регистрация FCM-токена устройства на каждом релее (push о событиях).
+     * Молча пропускается, если Firebase не настроен (нет google-services.json).
+     */
+    fun registerPushDevices() {
+        val app = getApplication<Application>()
+        if (com.google.firebase.FirebaseApp.getApps(app).isEmpty()) return
+        viewModelScope.launch {
+            val fcmToken = runCatching {
+                FirebaseMessaging.getInstance().token.await()
+            }.getOrNull() ?: return@launch
+            servers.value.filter { !it.isDemo }.forEach { cfg ->
+                runCatching {
+                    RelayAdmin(cfg.relayUrl, cfg.adminToken, cfg.relayCertPem)
+                        .registerDevice(cfg.token, fcmToken, cfg.label)
+                }.onFailure { e ->
+                    android.util.Log.w("PulseVM", "device registration failed: ${e.message}")
+                }
+            }
+        }
+    }
+
+    /** Обновление бинарника агента по SSH (по сохраненному доступу). */
+    fun updateAgent(serverId: String) {
+        val cfg = servers.value.firstOrNull { it.id == serverId } ?: return
+        val sshCfg = cfg.toSshConfig()
+        if (sshCfg == null) {
+            toasts.tryEmit(getApplication<Application>().getString(R.string.terminal_unavailable))
+            return
+        }
+        viewModelScope.launch {
+            toasts.emit(getApplication<Application>().getString(R.string.agent_updating))
+            runCatching {
+                SshInstaller { }.updateAgent(sshCfg, cfg.sshHostKeyFp) { }
+            }.onSuccess {
+                toasts.emit(getApplication<Application>().getString(R.string.agent_updated))
+            }.onFailure {
+                toasts.emit(getApplication<Application>().getString(R.string.error_action_failed, it.message ?: ""))
+            }
+        }
+    }
+
     fun selectAgent(agentId: String) {
         if (selectedAgent.value != agentId) {
             selectedAgent.value = agentId
@@ -426,3 +477,19 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
         const val RELAY_DOWN_NOTIFICATION_ID = 1001
     }
 }
+
+/** SSH-конфиг из сохраненных данных сервера; null, если SSH-доступа нет. */
+fun ServersStore.ServerConfig.toSshConfig(): SshInstaller.SshConfig? =
+    if (isDemo || sshAuthMode.isBlank() || sshSecret.isBlank()) {
+        null
+    } else {
+        SshInstaller.SshConfig(
+            host = label,
+            port = sshPort,
+            username = sshUser,
+            auth = when (sshAuthMode) {
+                "key" -> SshInstaller.SshConfig.Auth.Key(sshSecret, sshKeyPass.ifBlank { null })
+                else -> SshInstaller.SshConfig.Auth.Password(sshSecret)
+            },
+        )
+    }

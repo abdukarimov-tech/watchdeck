@@ -16,7 +16,8 @@ pub fn router(state: AppState) -> Router {
         .route("/ws/agent", get(agent_ws))
         .route("/ws/client", get(client_ws))
         .route("/api/agents", get(list_agents))
-        .route("/api/tokens", post(create_token))
+        .route("/api/tokens", post(create_token).get(list_tokens))
+        .route("/api/tokens/revoke", post(revoke_token))
         .route("/api/alerts", get(recent_alerts))
         .route("/api/devices", post(register_device))
         .with_state(state)
@@ -58,6 +59,7 @@ fn require_role(
 struct AgentRow {
     agent_id: String,
     hostname: String,
+    agent_version: String,
 }
 
 async fn list_agents(
@@ -71,7 +73,7 @@ async fn list_agents(
     Ok(Json(
         st.connected_agents()
             .into_iter()
-            .map(|(agent_id, hostname)| AgentRow { agent_id, hostname })
+            .map(|(agent_id, hostname, agent_version)| AgentRow { agent_id, hostname, agent_version })
             .collect(),
     ))
 }
@@ -165,6 +167,47 @@ async fn register_device(
     require_role(&st, &headers, "client").map_err(|(code, msg)| (code, msg.into()))?;
     st.db
         .add_device(&req.fcm_token, &req.agent_id)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Serialize)]
+struct TokenRowRes {
+    id: i64,
+    label: String,
+    role: String,
+    revoked: bool,
+}
+
+async fn list_tokens(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<TokenRowRes>>, (StatusCode, String)> {
+    require_admin(&st, &headers).map_err(|(code, msg)| (code, msg.into()))?;
+    let rows = st
+        .db
+        .list_tokens()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(
+        rows.into_iter()
+            .map(|t| TokenRowRes { id: t.id, label: t.label, role: t.role, revoked: t.revoked })
+            .collect(),
+    ))
+}
+
+#[derive(Deserialize)]
+struct RevokeReq {
+    id: i64,
+}
+
+async fn revoke_token(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<RevokeReq>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    require_admin(&st, &headers).map_err(|(code, msg)| (code, msg.into()))?;
+    st.db
+        .revoke_token(req.id)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(StatusCode::NO_CONTENT)
 }

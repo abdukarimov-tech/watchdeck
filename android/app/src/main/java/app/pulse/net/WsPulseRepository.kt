@@ -14,10 +14,11 @@ import kotlinx.coroutines.cancel
 class WsPulseRepository(config: ServersStore.ServerConfig) : PulseRepository {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private val conn = PulseConnection(scope, config.relayUrl, config.token)
+    private val conn = PulseConnection(scope, config.relayUrl, config.token, config.relayCertPem)
 
     override val connectionState = conn.connectionState
     override val agents = conn.agents
+    override val versions = conn.versions
     override val metricsByAgent = conn.metricsByAgent
     override val containersByAgent = conn.containersByAgent
     override val logLines = conn.logLines

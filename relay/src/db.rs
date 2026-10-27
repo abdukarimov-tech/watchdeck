@@ -41,6 +41,13 @@ pub fn generate_token() -> String {
     format!("pulse_{}", hex(&buf))
 }
 
+pub struct TokenRow {
+    pub id: i64,
+    pub label: String,
+    pub role: String,
+    pub revoked: bool,
+}
+
 impl Db {
     pub fn open(path: &str) -> Result<Self> {
         let conn = rusqlite::Connection::open(path)?;
@@ -74,6 +81,8 @@ impl Db {
                 created_unix INTEGER NOT NULL
             );",
         )?;
+        // миграция: колонка revoked для отзыва токенов
+        let _ = conn.execute_batch("ALTER TABLE tokens ADD COLUMN revoked INTEGER NOT NULL DEFAULT 0");
         Ok(())
     }
 
@@ -96,11 +105,28 @@ impl Db {
             .lock()
             .unwrap()
             .query_row(
-                "SELECT label, role FROM tokens WHERE token_hash = ?1",
+                "SELECT label, role FROM tokens WHERE token_hash = ?1 AND revoked = 0",
                 [&hash(token)],
                 |r| Ok((r.get(0)?, r.get(1)?)),
             )
             .ok()
+    }
+
+    pub fn list_tokens(&self) -> Result<Vec<TokenRow>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT rowid, label, role, revoked FROM tokens ORDER BY created_unix DESC",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            Ok(TokenRow { id: r.get(0)?, label: r.get(1)?, role: r.get(2)?, revoked: r.get::<_, i64>(3)? != 0 })
+        })?;
+        Ok(rows.collect::<std::result::Result<Vec<_>, _>>()?)
+    }
+
+    pub fn revoke_token(&self, id: i64) -> Result<()> {
+        self.conn.lock().unwrap()
+            .execute("UPDATE tokens SET revoked = 1 WHERE rowid = ?1", [id])?;
+        Ok(())
     }
 
     pub fn insert_alert(&self, alert: &Alert) -> Result<()> {

@@ -10,17 +10,21 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Terminal
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -28,7 +32,6 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -37,8 +40,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -47,10 +50,14 @@ import app.pulse.crypto.ServerSecretStore
 import app.pulse.data.MockPulseRepository
 import app.pulse.net.ConnState
 import app.pulse.net.WsPulseRepository
+import app.pulse.ui.components.StatusDot
 import app.pulse.ui.screens.ContainersScreen
 import app.pulse.ui.screens.DashboardScreen
 import app.pulse.ui.screens.LogsScreen
 import app.pulse.ui.screens.OnboardingScreen
+import app.pulse.ui.theme.PulseError
+import app.pulse.ui.theme.PulseSuccess
+import app.pulse.ui.theme.PulseWarn
 import app.pulse.ui.theme.PulseTheme
 
 class MainActivity : ComponentActivity() {
@@ -116,10 +123,10 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Tab(val titleRes: Int) {
-    Dashboard(R.string.tab_dashboard),
-    Containers(R.string.tab_containers),
-    Logs(R.string.tab_logs),
+private enum class Tab(val titleRes: Int, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    Dashboard(R.string.tab_dashboard, Icons.Filled.Dns),
+    Containers(R.string.tab_containers, Icons.Filled.SmartToy),
+    Logs(R.string.tab_logs, Icons.Filled.Terminal),
 }
 
 @Composable
@@ -140,75 +147,99 @@ private fun MainScreen(vm: PulseViewModel) {
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
-        topBar = {
-            if (connectionState != ConnState.CONNECTED) {
-                Surface(color = MaterialTheme.colorScheme.errorContainer) {
-                    Text(
-                        text = stringResource(
-                            if (connectionState == ConnState.CONNECTING) {
-                                R.string.conn_connecting
-                            } else {
-                                R.string.conn_offline
-                            },
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
-                    )
-                }
-            }
-        },
         bottomBar = {
-            NavigationBar {
+            NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
                 Tab.entries.forEach { t ->
                     NavigationBarItem(
                         selected = tab == t,
                         onClick = { tab = t },
-                        icon = {
-                            when (t) {
-                                Tab.Dashboard -> Icon(Icons.Filled.Dns, null)
-                                Tab.Containers -> Icon(Icons.Filled.SmartToy, null)
-                                Tab.Logs -> Icon(Icons.Filled.Terminal, null)
-                            }
-                        },
+                        icon = { Icon(t.icon, null) },
                         label = { Text(stringResource(t.titleRes)) },
+                        colors = androidx.compose.material3.NavigationBarItemDefaults.colors(
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                        ),
                     )
                 }
             }
         },
     ) { padding ->
         Column(Modifier.padding(padding)) {
-            if (agents.size > 1) {
-                // переключатель серверов
-                androidx.compose.foundation.layout.Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                ) {
-                    agents.forEach { (id, hostname) ->
-                        FilterChip(
-                            selected = selectedAgent == id,
-                            onClick = { vm.selectAgent(id) },
-                            label = { Text(hostname.ifEmpty { id }) },
-                            modifier = Modifier.padding(end = 8.dp),
-                        )
-                    }
-                }
-            }
+            ServerHeader(
+                connectionState = connectionState,
+                agents = agents,
+                selectedAgent = selectedAgent,
+                onSelect = vm::selectAgent,
+            )
             Box {
                 when (tab) {
                     Tab.Dashboard -> DashboardScreen(metrics)
                     Tab.Containers -> ContainersScreen(containers, onAction = vm::action)
                     Tab.Logs -> {
-                        // стримим логи первого запущенного контейнера выбранного сервера
                         LaunchedEffect(tab, selectedAgent) {
                             containers.firstOrNull { it.state == "RUNNING" }
                                 ?.let { vm.startLogs(it.id) }
                         }
                         LogsScreen(logs)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ServerHeader(
+    connectionState: ConnState,
+    agents: Map<String, String>,
+    selectedAgent: String?,
+    onSelect: (String) -> Unit,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    val hostname = selectedAgent?.let { agents[it] }.orEmpty().ifEmpty { selectedAgent.orEmpty() }
+
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(start = 20.dp, end = 12.dp, top = 14.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                hostname.ifEmpty { stringResource(R.string.app_name) },
+                style = MaterialTheme.typography.headlineSmall,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                val (dotColor, label) = when (connectionState) {
+                    ConnState.CONNECTED -> PulseSuccess to stringResource(R.string.conn_status_online)
+                    ConnState.CONNECTING -> PulseWarn to stringResource(R.string.conn_status_connecting)
+                    ConnState.DISCONNECTED -> PulseError to stringResource(R.string.conn_status_offline)
+                }
+                StatusDot(dotColor, size = 7.dp)
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    label,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        if (agents.size > 1) {
+            Box {
+                androidx.compose.material3.FilledTonalButton(onClick = { menuOpen = true }) {
+                    Text(stringResource(R.string.header_switch_server))
+                    Icon(Icons.Filled.ExpandMore, contentDescription = null)
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    agents.forEach { (id, host) ->
+                        DropdownMenuItem(
+                            text = { Text(host.ifEmpty { id }) },
+                            onClick = {
+                                menuOpen = false
+                                onSelect(id)
+                            },
+                        )
                     }
                 }
             }

@@ -40,6 +40,14 @@
     <string name="cd_restart">Restart container</string>
     <string name="cd_start">Start container</string>
 
+    <!-- logs -->
+    <string name="logs_filter_all">All</string>
+    <string name="logs_filter_issues">Issues</string>
+    <string name="conn_status_connecting">connecting…</string>
+    <string name="conn_status_offline">offline — retrying</string>
+    <string name="conn_status_online">online</string>
+    <string name="header_switch_server">Servers</string>
+
     <!-- errors / toasts -->
     <string name="error_action_failed">Action failed: %1$s</string>
     <string name="error_offline">No relay connection</string>

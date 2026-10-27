@@ -42,6 +42,14 @@
     <string name="cd_restart">Перезапустить контейнер</string>
     <string name="cd_start">Запустить контейнер</string>
 
+    <!-- logs -->
+    <string name="logs_filter_all">Все</string>
+    <string name="logs_filter_issues">Проблемы</string>
+    <string name="conn_status_connecting">подключение…</string>
+    <string name="conn_status_offline">офлайн — переподключение</string>
+    <string name="conn_status_online">на связи</string>
+    <string name="header_switch_server">Серверы</string>
+
     <!-- errors / toasts -->
     <string name="error_action_failed">Ошибка: %1$s</string>
     <string name="error_offline">Нет соединения с релеем</string>

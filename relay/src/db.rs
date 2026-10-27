@@ -136,6 +136,25 @@ impl Db {
         Ok(rows.collect::<std::result::Result<Vec<_>, _>>()?)
     }
 
+    /// Последние алерты по всем агентам (для клиентов с подпиской "все").
+    pub fn recent_alerts_any(&self, limit: i64) -> Result<Vec<Alert>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT agent_id, kind, container_name, message, at_unix
+             FROM alerts ORDER BY at_unix DESC LIMIT ?1",
+        )?;
+        let rows = stmt.query_map([limit], |r| {
+            Ok(Alert {
+                agent_id: r.get(0)?,
+                kind: r.get(1)?,
+                container_name: r.get(2)?,
+                message: r.get(3)?,
+                at_unix: r.get(4)?,
+            })
+        })?;
+        Ok(rows.collect::<std::result::Result<Vec<_>, _>>()?)
+    }
+
     pub fn add_device(&self, fcm_token: &str, agent_id: &str) -> Result<()> {
         self.conn.lock().unwrap().execute(
             "INSERT INTO devices (fcm_token, agent_id, created_unix) VALUES (?1, ?2, ?3)

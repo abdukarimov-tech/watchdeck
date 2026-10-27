@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- пульс: линия кардиограммы по центру safe zone -->
+    <path
+        android:pathData="M24,54 L38,54 L44,40 L52,68 L58,48 L63,54 L84,54"
+        android:strokeColor="#4FC3F7"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+</vector>

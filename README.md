@@ -19,8 +19,10 @@
   по WebSocket к релею. Слушающих портов нет, работает без root (группа docker).
 - **Релей** (`relay/`) — маршрутизатор на Rust (axum): авторизация по токенам,
   роутинг сообщений агент↔клиент, история алертов в SQLite, отправка FCM-пушей.
-- **Приложение** (`android/`) — Kotlin + Jetpack Compose. MVP-экраны работают на
-  мок-данных; токен клиента хранится в Android Keystore (StrongBox при наличии).
+- **Приложение** (`android/`) — Kotlin + Jetpack Compose: живой WebSocket к релею
+  (OkHttp + protobuf-lite), выбор сервера, статус-баннер соединения, токен клиента
+  в Android Keystore (StrongBox при наличии). Есть демо-режим без сервера (для
+  скриншотов и store review).
 
 ## Структура
 
@@ -70,13 +72,18 @@ WS: `GET /ws/agent` (Bearer agent-токен), `GET /ws/client?agent_id=...` (Be
 ## Android
 
 ```bash
-cd android && ./gradlew assembleDebug
+cd android && ./gradlew assembleDebug          # debug
+PULSE_STORE_FILE=... PULSE_STORE_PASSWORD=... PULSE_KEY_ALIAS=... \
+PULSE_KEY_PASSWORD=... ./gradlew assembleRelease   # release (R8 + подпись)
 ```
 
-Приложение стартует с экрана подключения (адрес релея + client-токен), затем —
-три вкладки: Сервер (метрики), Контейнеры (restart с подтверждением), Логи.
-MVP работает на мок-репозитории; переход на живой WS — в `net/WsPulseRepository`
-(интерфейс `data/PulseRepository` уже стабилизирован).
+Приложение стартует с экрана подключения (адрес релея + client-токен, либо
+«Демо-режим»), затем — три вкладки: Сервер (метрики), Контейнеры (restart с
+подтверждением), Логи (стрим с подсветкой ERROR/WARN). При нескольких агентах
+появляется чип-переключатель серверов. Протокол — сгенерированные
+protobuf-kotlin-lite классы из `proto/pulse.proto`.
+
+Релизный цикл (подписание, FCM, деплой релея, GitHub Release) — [RELEASE.md](RELEASE.md).
 
 ### Push-уведомления
 
@@ -92,10 +99,11 @@ MVP работает на мок-репозитории; переход на ж�
 ## Roadmap
 
 - [ ] E2E-шифрование payload поверх TLS (сейчас — токены + TLS)
-- [ ] Живой WS в приложении вместо моков
+- [ ] Отзыв отдельных токенов
 - [ ] SSH-bootstrap установки агента из приложения
 - [ ] iOS-клиент (Swift)
 - [ ] Автообновление агента, графики истории, быстрые скрипты
+- [ ] Выбор контейнера на экране логов
 
 ## Разработка
 

@@ -36,8 +36,7 @@ impl Config {
     pub fn load(path: Option<PathBuf>) -> Result<Self> {
         let path = path.unwrap_or_else(|| PathBuf::from("/etc/pulse-agent/config.toml"));
         let cfg = match std::fs::read_to_string(&path) {
-            Ok(raw) => toml::from_str::<Config>(&raw)
-                .context("config parse error")?,
+            Ok(raw) => toml::from_str::<Config>(&raw).context("config parse error")?,
             Err(_) if env_relay_set() => Self {
                 relay_url: String::new(),
                 token: String::new(),

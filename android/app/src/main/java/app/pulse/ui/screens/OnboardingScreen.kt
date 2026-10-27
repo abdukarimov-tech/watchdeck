@@ -22,9 +22,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun OnboardingScreen(onDone: (relayUrl: String, token: String) -> Unit) {
+fun OnboardingScreen(onDone: (relayUrl: String, token: String, demo: Boolean) -> Unit) {
     var url by remember { mutableStateOf("") }
     var token by remember { mutableStateOf("") }
+    var demo by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
     Column(
@@ -57,25 +58,32 @@ fun OnboardingScreen(onDone: (relayUrl: String, token: String) -> Unit) {
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
+        Spacer(Modifier.height(12.dp))
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            androidx.compose.material3.Checkbox(checked = demo, onCheckedChange = { demo = it })
+            Text("Демо-режим (без сервера)", style = MaterialTheme.typography.bodyMedium)
+        }
         error?.let {
             Spacer(Modifier.height(8.dp))
             Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
         }
         Spacer(Modifier.height(24.dp))
-        Row {
-            Button(
-                onClick = {
-                    when {
-                        !url.startsWith("wss://") && !url.startsWith("ws://") ->
-                            error = "Адрес должен начинаться с wss://"
-                        token.isBlank() -> error = "Введите токен"
-                        else -> onDone(url.trim(), token.trim())
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Подключиться")
-            }
+        Button(
+            onClick = {
+                if (demo) {
+                    onDone("", "", true)
+                    return@Button
+                }
+                when {
+                    !url.startsWith("wss://") && !url.startsWith("ws://") ->
+                        error = "Адрес должен начинаться с wss://"
+                    token.isBlank() -> error = "Введите токен"
+                    else -> onDone(url.trim(), token.trim(), false)
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Подключиться")
         }
         Spacer(Modifier.height(16.dp))
         Card {

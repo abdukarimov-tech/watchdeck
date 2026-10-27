@@ -38,7 +38,8 @@ fun formatBytes(bytes: Long): String {
         value /= 1024.0
         unit++
     }
-    return if (unit == 0) "${bytes} B" else "%.1f %s".format(value, units[unit])
+    // Locale.US — чтобы разделитель не зависел от локали устройства
+    return if (unit == 0) "$bytes B" else String.format(java.util.Locale.US, "%.1f %s", value, units[unit])
 }
 
 fun formatUptime(seconds: Long): String {

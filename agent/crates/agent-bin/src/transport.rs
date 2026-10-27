@@ -208,14 +208,23 @@ async fn session(cfg: &Config) -> Result<()> {
     // Активные стримы логов: stream_id -> токен отмены
     let mut log_streams: HashMap<String, CancellationToken> = HashMap::new();
 
+    // если релей молчит дольше 2 минут (мы шлем Ping каждые 30с) —
+    // соединение считаем мертвым и переподключаемся
+    const IDLE_TIMEOUT: Duration = Duration::from_secs(120);
+
     let mut session_err: Option<anyhow::Error> = None;
     loop {
+        let next = tokio::time::timeout(IDLE_TIMEOUT, incoming.next());
         let msg = tokio::select! {
             _ = session_cancel.cancelled() => break,
-            item = incoming.next() => match item {
-                Some(Ok(m)) => m,
-                Some(Err(e)) => { session_err = Some(e.into()); break; }
-                None => break,
+            item = next => match item {
+                Ok(Some(Ok(m))) => m,
+                Ok(Some(Err(e))) => { session_err = Some(e.into()); break; }
+                Ok(None) => break,
+                Err(_elapsed) => {
+                    warn!("relay idle timeout, dropping connection");
+                    break;
+                }
             },
         };
         let WsMessage::Binary(bytes) = msg else {

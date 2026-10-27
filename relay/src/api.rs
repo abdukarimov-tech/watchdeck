@@ -63,8 +63,11 @@ struct AgentRow {
 async fn list_agents(
     State(st): State<AppState>,
     headers: HeaderMap,
-) -> Result<Json<Vec<AgentRow>>, (StatusCode, &'static str)> {
-    require_admin(&st, &headers)?;
+) -> Result<Json<Vec<AgentRow>>, (StatusCode, String)> {
+    // список серверов нужен клиентскому приложению; админ-токен тоже принимаем
+    if require_role(&st, &headers, "client").is_err() {
+        require_admin(&st, &headers).map_err(|(code, msg)| (code, msg.into()))?;
+    }
     Ok(Json(
         st.connected_agents()
             .into_iter()

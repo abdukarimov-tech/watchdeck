@@ -1,0 +1,7 @@
+# Caddy: автоматический TLS (Let's Encrypt) + проксирование Pulse.
+# Файл: /etc/caddy/Caddyfile
+# Домен должен указывать A/AAAA записью на сервер релея.
+
+relay.example.com {
+    reverse_proxy 127.0.0.1:8080
+}

@@ -1,5 +1,7 @@
 //! WebSocket-обработчики для агентов и клиентов.
 
+use std::time::Duration;
+
 use axum::extract::ws::{Message as AxWsMessage, WebSocket, WebSocketUpgrade};
 use axum::extract::{Query, State};
 use axum::http::{HeaderMap, StatusCode};
@@ -7,14 +9,17 @@ use axum::response::{IntoResponse, Response};
 use futures_util::{SinkExt, StreamExt};
 use prost::Message as _;
 use tokio::sync::mpsc;
+use tokio::time::timeout;
 use tracing::{info, warn};
 
 use crate::db::Alert;
 use crate::pb::msg::Payload;
-use crate::pb::{
-    ContainerActionResult, ContainerList, EventKind, HelloAck, LogsChunk, MetricsReport, Msg,
-};
+use crate::pb::{EventAlert, HelloAck, Msg};
 use crate::state::AppState;
+
+/// Если от пира нет ни одного сообщения за это время — считаем соединение
+/// мертвым (half-open TCP) и закрываем. Агент и клиент шлют аппаратные Ping.
+const IDLE_TIMEOUT: Duration = Duration::from_secs(120);
 
 fn bearer(headers: &HeaderMap) -> Option<String> {
     headers
@@ -23,6 +28,13 @@ fn bearer(headers: &HeaderMap) -> Option<String> {
         .ok()?
         .strip_prefix("Bearer ")
         .map(str::to_owned)
+}
+
+fn encode_msg(msg: &Msg) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(msg.encoded_len());
+    // encode в Vec не может провалиться
+    let _ = msg.encode(&mut buf);
+    buf
 }
 
 /// GET /ws/agent — подключение агента (роль `agent` в токене).
@@ -57,10 +69,11 @@ async fn agent_socket(st: AppState, agent_id: String, socket: WebSocket) {
             relay_version: crate::RELAY_VERSION.into(),
         })),
     };
-    let mut buf = Vec::with_capacity(ack.encoded_len());
-    // encode в буфер не может провалиться для Vec
-    let _ = ack.encode(&mut buf);
-    if sink.send(AxWsMessage::Binary(buf)).await.is_err() {
+    if sink
+        .send(AxWsMessage::Binary(encode_msg(&ack)))
+        .await
+        .is_err()
+    {
         st.unregister_agent(&agent_id);
         return;
     }
@@ -73,7 +86,14 @@ async fn agent_socket(st: AppState, agent_id: String, socket: WebSocket) {
         }
     });
 
-    while let Some(Ok(msg)) = stream.next().await {
+    loop {
+        let next = timeout(IDLE_TIMEOUT, stream.next()).await;
+        let Ok(Some(Ok(msg))) = next else {
+            if next.is_err() {
+                warn!(%agent_id, "agent idle timeout, dropping connection");
+            }
+            break;
+        };
         let AxWsMessage::Binary(bytes) = msg else {
             continue;
         };
@@ -86,14 +106,12 @@ async fn agent_socket(st: AppState, agent_id: String, socket: WebSocket) {
                 st.register_agent(agent_id.clone(), hello.hostname.clone(), tx.clone());
                 info!(%agent_id, hostname = %hello.hostname, "agent hello");
             }
-            Some(Payload::Metrics(MetricsReport { .. }))
-            | Some(Payload::ContainerList(ContainerList { .. }))
-            | Some(Payload::ContainerActionResult(ContainerActionResult { .. }))
-            | Some(Payload::LogsChunk(LogsChunk { .. })) => {
-                st.forward_to_clients(&agent_id, bytes.as_ref());
+            Some(Payload::Ping(_)) => {
+                // ответ не нужен: tungstenite сам отвечает на протокольные ping,
+                // а аппаратный Ping агента служит доказательством живости
             }
-            Some(Payload::EventAlert(ev)) => {
-                let kind_name = EventKind::try_from(ev.kind)
+            Some(Payload::EventAlert(mut ev)) => {
+                let kind_name = crate::pb::EventKind::try_from(ev.kind)
                     .map(|k| k.as_str_name())
                     .unwrap_or("EVENT_UNKNOWN");
                 let alert = Alert {
@@ -101,12 +119,24 @@ async fn agent_socket(st: AppState, agent_id: String, socket: WebSocket) {
                     kind: kind_name.into(),
                     container_name: ev.container_name.clone(),
                     message: ev.message.clone(),
-                    at_unix: ev.at_unix,
+                    at_unix: if ev.at_unix > 0 {
+                        ev.at_unix
+                    } else {
+                        crate::db::now_unix() as i64
+                    },
                 };
                 if let Err(e) = st.db.insert_alert(&alert) {
                     warn!(%agent_id, error = %e, "failed to store alert");
                 }
-                st.forward_to_clients(&agent_id, bytes.as_ref());
+                ev.at_unix = alert.at_unix;
+                st.forward_to_clients(
+                    &agent_id,
+                    Msg {
+                        id: msg.id,
+                        target: String::new(),
+                        payload: Some(Payload::EventAlert(ev)),
+                    },
+                );
                 // пуш не блокирует обработку дальнейших событий
                 let st2 = st.clone();
                 let agent = agent_id.clone();
@@ -115,15 +145,21 @@ async fn agent_socket(st: AppState, agent_id: String, socket: WebSocket) {
                         .push_container_alert(
                             &st2.db.device_tokens(&agent).unwrap_or_default(),
                             &agent,
-                            &ev.container_name,
-                            &ev.message,
+                            &alert.container_name,
+                            &alert.message,
                             kind_name,
                         )
                         .await;
                 });
             }
-            Some(Payload::Pong(_)) => {}
-            Some(other) => warn!(%agent_id, ?other, "unexpected payload from agent"),
+            Some(other) => st.forward_to_clients(
+                &agent_id,
+                Msg {
+                    id: msg.id,
+                    target: String::new(),
+                    payload: Some(other),
+                },
+            ),
             None => {}
         }
     }
@@ -132,9 +168,10 @@ async fn agent_socket(st: AppState, agent_id: String, socket: WebSocket) {
     writer.abort();
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Default)]
 pub struct ClientQuery {
-    pub agent_id: String,
+    /// Не задан или "*" — подписка на всех агентов.
+    pub agent_id: Option<String>,
 }
 
 /// GET /ws/client?agent_id=... — подключение клиента-приложения.
@@ -153,13 +190,41 @@ pub async fn client_ws(
     if role != "client" {
         return (StatusCode::FORBIDDEN, "client role required").into_response();
     }
-    ws.on_upgrade(move |socket| client_socket(st, q.agent_id, socket))
+    let filter = q.agent_id.filter(|a| a != "*" && !a.is_empty());
+    ws.on_upgrade(move |socket| client_socket(st, filter, socket))
 }
 
-async fn client_socket(st: AppState, agent_id: String, socket: WebSocket) {
+async fn client_socket(st: AppState, filter: Option<String>, socket: WebSocket) {
     let (mut sink, mut stream) = socket.split();
     let (tx, mut rx) = mpsc::unbounded_channel::<Vec<u8>>();
-    let client_id = st.register_client(agent_id.clone(), tx);
+    let client_id = st.register_client(filter.clone(), tx.clone());
+
+    // история алертов: клиент, пришедший после падения контейнера, видит событие
+    let history_limit = 50;
+    let history = match filter.as_deref() {
+        Some(agent) => st.db.recent_alerts(agent, history_limit),
+        None => st.db.recent_alerts_any(history_limit),
+    };
+    for alert in history.unwrap_or_default() {
+        let kind = match alert.kind.as_str() {
+            "CONTAINER_DIED" => crate::pb::EventKind::ContainerDied,
+            "CONTAINER_STARTED" => crate::pb::EventKind::ContainerStarted,
+            "OOM" => crate::pb::EventKind::Oom,
+            _ => crate::pb::EventKind::EventUnknown,
+        };
+        let msg = Msg {
+            id: 0,
+            target: alert.agent_id.clone(),
+            payload: Some(Payload::EventAlert(EventAlert {
+                kind: kind as i32,
+                container_id: String::new(),
+                container_name: alert.container_name,
+                at_unix: alert.at_unix,
+                message: alert.message,
+            })),
+        };
+        let _ = tx.send(encode_msg(&msg));
+    }
 
     let writer = tokio::spawn(async move {
         while let Some(bytes) = rx.recv().await {
@@ -169,25 +234,24 @@ async fn client_socket(st: AppState, agent_id: String, socket: WebSocket) {
         }
     });
 
-    while let Some(Ok(msg)) = stream.next().await {
+    loop {
+        let next = timeout(IDLE_TIMEOUT, stream.next()).await;
+        let Ok(Some(Ok(msg))) = next else {
+            break; // таймаут или закрытие
+        };
         let AxWsMessage::Binary(bytes) = msg else {
             continue;
         };
-        // target из сообщения имеет приоритет над подпиской; для MVP
-        // подписка определяет маршрутизацию, target — уточнение
-        let target = Msg::decode(bytes.as_ref())
-            .ok()
-            .and_then(|m| {
-                let t = m.target;
-                if t.is_empty() {
-                    None
-                } else {
-                    Some(t)
-                }
-            })
-            .unwrap_or_else(|| agent_id.clone());
-        if let Err(e) = st.forward_to_agent(Some(&target), bytes.as_ref()) {
-            warn!(%agent_id, error = e, "forward to agent failed");
+        let Ok(decoded) = Msg::decode(bytes.as_ref()) else {
+            warn!("undecodable message from client");
+            continue;
+        };
+        // Ping от клиента доказывает живость соединения
+        if matches!(decoded.payload, Some(Payload::Ping(_))) {
+            continue;
+        }
+        if let Err(e) = st.forward_to_agent(Some(&decoded.target), bytes.as_ref()) {
+            warn!(target = %decoded.target, error = e, "forward to agent failed");
         }
     }
 

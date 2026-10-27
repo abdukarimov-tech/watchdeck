@@ -1,40 +1,90 @@
 package app.pulse
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import app.pulse.data.AlertUi
 import app.pulse.data.ContainerUi
 import app.pulse.data.LogLineUi
 import app.pulse.data.MetricsUi
-import app.pulse.data.MockPulseRepository
 import app.pulse.data.PulseRepository
+import app.pulse.data.combineSelected
+import app.pulse.net.ConnState
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
-/**
- * Экраны живут на интерфейсе [PulseRepository]. Сейчас это мок; подключение
- * живого WS-канала к релею делается заменой реализации, UI не меняется.
- */
-class PulseViewModel : ViewModel() {
+class PulseViewModel(private val repo: PulseRepository) : ViewModel() {
 
-    private val repo: PulseRepository = MockPulseRepository(viewModelScope)
+    val connectionState: StateFlow<ConnState> = repo.connectionState
+    val agents: StateFlow<Map<String, String>> = repo.agents
+    val events: StateFlow<List<AlertUi>> = repo.events
+    val logLines: StateFlow<List<LogLineUi>> = repo.logLines
 
-    val metrics: Flow<MetricsUi?> = repo.metrics()
-    val containers: Flow<List<ContainerUi>> = repo.containers()
-    val logs = MutableStateFlow<List<LogLineUi>>(emptyList())
+    /** Выбранный сервер (agent_id). null, пока список пуст. */
+    val selectedAgent = MutableStateFlow<String?>(null)
 
-    fun startLogs(containerId: String) {
-        logs.value = emptyList()
+    val metrics: Flow<MetricsUi?> = combineSelected(repo.metricsByAgent, selectedAgent)
+    val containers: Flow<List<ContainerUi>> = combineSelected(
+        repo.containersByAgent,
+        selectedAgent,
+    ).map { it ?: emptyList() }
+
+    /** Сообщения для snackbar (ошибки действий, события алертов). */
+    val toasts = MutableSharedFlow<String>(extraBufferCapacity = 8)
+
+    init {
         viewModelScope.launch {
-            repo.logs(containerId, follow = true).collect { logs.value = logs.value + it }
+            repo.agents.collect { map ->
+                if (selectedAgent.value == null && map.isNotEmpty()) {
+                    selectedAgent.value = map.keys.first()
+                }
+            }
+        }
+        viewModelScope.launch {
+            repo.events.collect { list ->
+                val alert = list.firstOrNull() ?: return@collect
+                when (alert.kind) {
+                    "CONTAINER_DIED", "OOM" ->
+                        toasts.emit("${alert.containerName}: ${alert.message.ifEmpty { alert.kind }}")
+                }
+            }
         }
     }
 
-    fun action(containerId: String, kind: String) {
-        viewModelScope.launch {
-            repo.action(containerId, kind)
-                .onFailure { // TODO: snackbar с ошибкой в UI
-                }
+    private var lastLogsContainer: String? = null
+
+    fun selectAgent(agentId: String) {
+        if (selectedAgent.value != agentId) {
+            selectedAgent.value = agentId
+            // активный стрим логов принадлежит прежнему серверу — перезапросим
+            lastLogsContainer?.let { repo.requestLogs(agentId, it) }
         }
+    }
+
+    fun startLogs(containerId: String) {
+        lastLogsContainer = containerId
+        val agent = selectedAgent.value ?: return
+        repo.requestLogs(agent, containerId)
+    }
+
+    fun action(containerId: String, kind: String) {
+        val agent = selectedAgent.value ?: return
+        viewModelScope.launch {
+            repo.action(agent, containerId, kind)
+                .onFailure { toasts.emit("Ошибка: ${it.message}") }
+        }
+    }
+
+    override fun onCleared() {
+        repo.close()
+    }
+
+    class Factory(private val repo: PulseRepository) : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T = PulseViewModel(repo) as T
     }
 }

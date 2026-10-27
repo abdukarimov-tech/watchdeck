@@ -1,0 +1,21 @@
+[Unit]
+Description=Pulse relay (agent/client router + FCM push)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pulse-relay
+Group=pulse-relay
+EnvironmentFile=/etc/pulse-relay/pulse-relay.env
+ExecStart=/usr/local/bin/pulse-relay
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+StateDirectory=pulse-relay
+
+[Install]
+WantedBy=multi-user.target

@@ -49,5 +49,7 @@ jobs:
           distribution: temurin
           java-version: "21"
       - uses: android-actions/setup-android@v3
+      - run: gradle testDebugUnitTest
+        working-directory: android
       - run: gradle assembleDebug
         working-directory: android

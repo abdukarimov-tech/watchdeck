@@ -3,12 +3,21 @@
 use std::sync::Arc;
 
 use dashmap::DashMap;
+use prost::Message as _;
 use tokio::sync::mpsc;
 
 use crate::db::Db;
 use crate::fcm::FcmSender;
+use crate::pb::Msg;
 
 pub type OutTx = mpsc::UnboundedSender<Vec<u8>>;
+
+/// Подписка клиента: None = все агенты, Some(id) = конкретный агент.
+#[derive(Clone)]
+pub struct ClientConn {
+    pub filter: Option<String>,
+    pub tx: OutTx,
+}
 
 #[derive(Clone)]
 pub struct AppState {
@@ -23,8 +32,8 @@ struct Inner {
     agents: DashMap<String, OutTx>,
     /// agent_id -> hostname (из Hello)
     agent_hosts: DashMap<String, String>,
-    /// client conn id -> (agent_id, канал клиенту)
-    clients: DashMap<u64, (String, OutTx)>,
+    /// client conn id -> подписка + канал клиенту
+    clients: DashMap<u64, ClientConn>,
     next_client_id: std::sync::atomic::AtomicU64,
 }
 
@@ -57,12 +66,12 @@ impl AppState {
         self.inner.agent_hosts.remove(agent_id);
     }
 
-    pub fn register_client(&self, agent_id: String, tx: OutTx) -> u64 {
+    pub fn register_client(&self, filter: Option<String>, tx: OutTx) -> u64 {
         let id = self
             .inner
             .next_client_id
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        self.inner.clients.insert(id, (agent_id, tx));
+        self.inner.clients.insert(id, ClientConn { filter, tx });
         id
     }
 
@@ -70,12 +79,20 @@ impl AppState {
         self.inner.clients.remove(&id);
     }
 
-    /// Сообщение от агента: разослать всем подписанным клиентам.
-    pub fn forward_to_clients(&self, agent_id: &str, bytes: &[u8]) {
+    /// Сообщение от агента: проставляем target = agent_id (клиент различает
+    /// серверы), фильтруем по подпискам и рассылаем.
+    pub fn forward_to_clients(&self, agent_id: &str, msg: Msg) {
+        let mut msg = msg;
+        msg.target = agent_id.to_owned();
+        let mut buf = Vec::with_capacity(msg.encoded_len());
+        if msg.encode(&mut buf).is_err() {
+            return;
+        }
         for entry in self.inner.clients.iter() {
-            let (subscribed, tx) = entry.value();
-            if subscribed == agent_id {
-                let _ = tx.send(bytes.to_vec());
+            let conn = entry.value();
+            let matches = conn.filter.as_deref().map_or(true, |f| f == agent_id);
+            if matches {
+                let _ = conn.tx.send(buf.clone());
             }
         }
     }
@@ -110,5 +127,81 @@ impl AppState {
                     .map(|h| (e.key().clone(), h.clone()))
             })
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::pb::msg::Payload;
+    use crate::pb::{Container, ContainerList};
+
+    fn state() -> AppState {
+        let db = Db::open(":memory:").unwrap();
+        db.migrate().unwrap();
+        AppState::new("admin".into(), db, FcmSender::Disabled)
+    }
+
+    fn container_list_msg() -> Msg {
+        Msg {
+            id: 1,
+            target: String::new(),
+            payload: Some(Payload::ContainerList(ContainerList {
+                containers: vec![Container::default()],
+            })),
+        }
+    }
+
+    #[test]
+    fn forward_sets_target_and_respects_filters() {
+        let st = state();
+        let (all_tx, mut all_rx) = mpsc::unbounded_channel();
+        let (other_tx, mut other_rx) = mpsc::unbounded_channel();
+        st.register_client(None, all_tx); // подписка на всех
+        st.register_client(Some("other".into()), other_tx); // другой агент
+
+        st.forward_to_clients("a1", container_list_msg());
+
+        let got = all_rx.try_recv().unwrap();
+        let decoded = Msg::decode(got.as_slice()).unwrap();
+        assert_eq!(decoded.target, "a1");
+        assert!(matches!(decoded.payload, Some(Payload::ContainerList(_))));
+        // подписчик на "other" не получает сообщения от "a1"
+        assert!(other_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn forward_to_agent_single_agent_no_target() {
+        let st = state();
+        let (agent_tx, mut agent_rx) = mpsc::unbounded_channel();
+        st.register_agent("only".into(), "host".into(), agent_tx);
+
+        let bytes = {
+            let m = container_list_msg();
+            let mut b = Vec::new();
+            m.encode(&mut b).unwrap();
+            b
+        };
+        assert!(st.forward_to_agent(None, &bytes).is_ok());
+        assert!(agent_rx.try_recv().is_ok());
+    }
+
+    #[test]
+    fn forward_to_agent_requires_target_when_multiple() {
+        let st = state();
+        let (tx1, _rx1) = mpsc::unbounded_channel();
+        let (tx2, _rx2) = mpsc::unbounded_channel();
+        st.register_agent("a".into(), "h".into(), tx1);
+        st.register_agent("b".into(), "h".into(), tx2);
+
+        let bytes = {
+            let m = container_list_msg();
+            let mut b = Vec::new();
+            m.encode(&mut b).unwrap();
+            b
+        };
+        assert!(st.forward_to_agent(None, &bytes).is_err());
+        assert!(st.forward_to_agent(Some("a"), &bytes).is_ok());
+        assert!(st.forward_to_agent(Some("zzz"), &bytes).is_err());
     }
 }

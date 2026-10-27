@@ -127,7 +127,11 @@ class SshInstaller(private val onLog: (String) -> Unit) {
             onLog("public address: $publicIp")
 
             // ---------- 2. релей: ставим, если еще нет ----------
-            val health = sh("curl -s --max-time 3 http://127.0.0.1:8080/health || true").trim()
+            // -k: самоподписанный сертификат; TLS-релей слушает 8443, plain — 8080
+            val health = sh(
+                "curl -sk --max-time 3 https://127.0.0.1:8443/health || " +
+                    "curl -s --max-time 3 http://127.0.0.1:8080/health || true",
+            ).trim()
             val adminToken: String
             var certPem = ""
             var relayUrl: String
@@ -165,16 +169,26 @@ class SshInstaller(private val onLog: (String) -> Unit) {
                     }
                 }
 
+                // при TLS релей слушает 8443 (relayUrl ниже), без TLS — 8080
+                val bindPort = if (tlsEnv.isEmpty()) "8080" else "8443"
                 writeFile(::sh,
                     "/etc/pulse-relay/pulse-relay.env",
-                    "PULSE_BIND=0.0.0.0:8080\nPULSE_ADMIN_TOKEN=$adminToken\nPULSE_DB=/var/lib/pulse-relay/relay.db\n$tlsEnv",
+                    "PULSE_BIND=0.0.0.0:$bindPort\nPULSE_ADMIN_TOKEN=$adminToken\nPULSE_DB=/var/lib/pulse-relay/relay.db\n$tlsEnv",
                 )
                 sh("chmod 600 /etc/pulse-relay/pulse-relay.env")
                 writeFile(::sh, "/etc/systemd/system/pulse-relay.service", RELAY_UNIT)
                 sh("systemctl daemon-reload")
                 sh("systemctl enable --now pulse-relay")
-                val relayActive = sh("systemctl is-active pulse-relay").trim()
-                if (relayActive != "active") throw IOException("relay service is not active: $relayActive")
+                // Type=simple: дать сервису секунду — иначе is-active гонка
+                sh("sleep 1")
+                // is-active возвращает != 0 для failed/inactive — не роняем sh()
+                val relayActive = sh("systemctl is-active pulse-relay || true").trim()
+                if (relayActive != "active") {
+                    // причина падения — в журнал в терминал установки
+                    onLog("relay service state: $relayActive")
+                    onLog(sh("journalctl -u pulse-relay -n 40 --no-pager 2>&1 | tail -40 || true"))
+                    throw IOException("relay service is not active: $relayActive (see journal above)")
+                }
                 onLog("relay installed on this server")
                 relayUrl = if (tlsEnv.isEmpty()) "ws://$publicIp:8080" else "wss://$publicIp:8443"
             }

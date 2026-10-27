@@ -95,7 +95,7 @@ impl AppState {
         }
         for entry in self.inner.clients.iter() {
             let conn = entry.value();
-            let matches = conn.filter.as_deref().map_or(true, |f| f == agent_id);
+            let matches = conn.filter.as_deref().is_none_or(|f| f == agent_id);
             if matches {
                 let _ = conn.tx.send(buf.clone());
             }

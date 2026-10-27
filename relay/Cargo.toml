@@ -16,6 +16,9 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 axum = { version = "0.7", features = ["ws"] }
 axum-server = { version = "0.7", features = ["tls-rustls"] }
+# явный CryptoProvider: в дереве есть и ring (reqwest/tungstenite), и aws-lc-rs
+# (axum-server) — rustls 0.23 без install_default() паникует на старте TLS
+rustls = { version = "0.23", features = ["ring"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
 sha2 = "0.10"
 rand = "0.8"

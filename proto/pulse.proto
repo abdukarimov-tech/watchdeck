@@ -1,0 +1,154 @@
+syntax = "proto3";
+
+package pulse.v1;
+
+// Единственный конверт для всех сообщений агент <-> релей <-> клиент.
+// `target` используется релеем для маршрутизации сообщений от клиента к агенту;
+// в сообщениях от агента поле игнорируется.
+message Msg {
+  uint64 id = 1;
+  string target = 12;
+  oneof payload {
+    Hello hello = 101;
+    HelloAck hello_ack = 102;
+    MetricsReport metrics = 103;
+    ContainerList container_list = 104;
+    ContainerAction container_action = 105;
+    ContainerActionResult container_action_result = 106;
+    LogsRequest logs_request = 107;
+    LogsChunk logs_chunk = 108;
+    EventAlert event_alert = 109;
+    Ping ping = 110;
+    Pong pong = 111;
+  }
+}
+
+// Агент -> релей при подключении (auth идет в заголовке WebSocket-запроса).
+message Hello {
+  string agent_version = 1;
+  string hostname = 2;
+  string os = 3;
+  string kernel = 4;
+  uint32 cpu_cores = 5;
+  uint64 total_memory = 6;
+}
+
+message HelloAck {
+  string agent_id = 1;
+  string relay_version = 2;
+}
+
+message MetricsReport {
+  double cpu_usage_percent = 1;
+  uint32 cpu_cores = 2;
+  // load average 1/5/15 минут
+  repeated double load_avg = 3;
+  uint64 mem_total = 4;
+  uint64 mem_used = 5;
+  uint64 swap_total = 6;
+  uint64 swap_used = 7;
+  uint64 uptime_seconds = 8;
+  repeated DiskStat disks = 9;
+  NetStat net = 10;
+  uint64 collected_at_unix = 11;
+}
+
+message DiskStat {
+  string mount = 1;
+  uint64 total = 2;
+  uint64 used = 3;
+}
+
+message NetStat {
+  uint64 rx_bytes_per_sec = 1;
+  uint64 tx_bytes_per_sec = 2;
+}
+
+message ContainerList {
+  repeated Container containers = 1;
+}
+
+message Container {
+  string id = 1;
+  string name = 2;
+  string image = 3;
+  ContainerState state = 4;
+  // человекочитаемый статус от Docker ("Up 3 days (healthy)")
+  string status = 5;
+  int64 created_unix = 6;
+}
+
+enum ContainerState {
+  CONTAINER_UNKNOWN = 0;
+  CREATED = 1;
+  RUNNING = 2;
+  PAUSED = 3;
+  RESTARTING = 4;
+  EXITED = 5;
+  DEAD = 6;
+}
+
+// Клиент -> релей -> агент.
+message ContainerAction {
+  string container_id = 1;
+  ContainerActionKind kind = 2;
+}
+
+enum ContainerActionKind {
+  ACTION_UNSPECIFIED = 0;
+  ACTION_START = 1;
+  ACTION_STOP = 2;
+  ACTION_RESTART = 3;
+}
+
+message ContainerActionResult {
+  string container_id = 1;
+  ContainerActionKind kind = 2;
+  bool ok = 3;
+  string error = 4;
+}
+
+message LogsRequest {
+  string container_id = 1;
+  uint32 tail_lines = 2;
+  bool follow = 3;
+  // идентификатор потока: позволяет клиенту отменить/заменить активный стрим
+  string stream_id = 4;
+}
+
+message LogsChunk {
+  string container_id = 1;
+  string stream_id = 2;
+  repeated LogLine lines = 3;
+  bool eof = 4;
+}
+
+message LogLine {
+  int64 ts_unix = 1;
+  bool stderr = 2;
+  string text = 3;
+}
+
+// Агент -> релей -> (клиент, FCM push при CONTAINER_DIED / OOM).
+message EventAlert {
+  EventKind kind = 1;
+  string container_id = 2;
+  string container_name = 3;
+  int64 at_unix = 4;
+  string message = 5;
+}
+
+enum EventKind {
+  EVENT_UNKNOWN = 0;
+  CONTAINER_DIED = 1;
+  CONTAINER_STARTED = 2;
+  OOM = 3;
+}
+
+message Ping {
+  uint64 seq = 1;
+}
+
+message Pong {
+  uint64 seq = 1;
+}

@@ -1,0 +1,22 @@
+[package]
+name = "agent-bin"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "pulse-agent"
+path = "src/main.rs"
+
+[dependencies]
+agent-core = { path = "../agent-core" }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+futures-util = { workspace = true }
+prost = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+toml = "0.8"
+serde = { version = "1", features = ["derive"] }
+tokio-tungstenite = { version = "0.23", features = ["rustls-tls-webpki-roots"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

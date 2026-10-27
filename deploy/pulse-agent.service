@@ -1,0 +1,23 @@
+[Unit]
+Description=Pulse monitoring agent (VPS/Docker metrics)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pulse-agent
+Group=docker
+ExecStart=/usr/local/bin/pulse-agent /etc/pulse-agent/config.toml
+Restart=always
+RestartSec=5
+# защита: агенту не нужны привилегии
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+ReadWritePaths=/etc/pulse-agent
+# агент инициирует только исходящие соединения
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

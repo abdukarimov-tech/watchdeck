@@ -1,0 +1,21 @@
+# Rust
+target/
+**/*.rs.bk
+
+# Node / misc
+.DS_Store
+
+# Android / Gradle
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+*.iml
+*.keystore
+!debug.keystore
+
+# Environment / secrets
+.env
+*.env
+google-services.json

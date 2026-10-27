@@ -1,0 +1,35 @@
+# Локальный e2e-стенд: relay + агент против docker.sock хоста.
+#
+#   export PULSE_ADMIN_TOKEN=dev-admin
+#   docker compose -f docker-compose.dev.yml up --build
+#   # выпуск токенов:
+#   curl -s -XPOST localhost:8080/api/tokens -H 'X-Admin-Token: dev-admin' \
+#        -H 'Content-Type: application/json' -d '{"label":"dev-vps","role":"agent"}'
+#   curl -s -XPOST localhost:8080/api/tokens -H 'X-Admin-Token: dev-admin' \
+#        -H 'Content-Type: application/json' -d '{"label":"phone","role":"client"}'
+#
+services:
+  relay:
+    build: ./relay
+    ports:
+      - "8080:8080"
+    environment:
+      PULSE_ADMIN_TOKEN: ${PULSE_ADMIN_TOKEN:?set PULSE_ADMIN_TOKEN}
+      PULSE_DB: /data/relay.db
+    volumes:
+      - relay-data:/data
+
+  agent:
+    build: ./agent
+    # перед запуском выпустите агентский токен через /api/tokens
+    # и экспортируйте его в PULSE_AGENT_TOKEN
+    environment:
+      PULSE_RELAY_URL: ws://relay:8080/ws/agent
+      PULSE_TOKEN: ${PULSE_AGENT_TOKEN:?export PULSE_AGENT_TOKEN first}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - relay
+
+volumes:
+  relay-data:

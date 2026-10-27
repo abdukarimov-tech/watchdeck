@@ -8,6 +8,23 @@
     <string name="cd_remove_server">Remove server</string>
     <string name="demo_label">Demo</string>
 
+    <!-- servers sheet / details -->
+    <string name="servers_active_badge">active</string>
+    <string name="servers_demo_caption">demo mode — sample data</string>
+    <string name="servers_connecting_caption">waiting for data…</string>
+    <string name="widget_cpu">CPU</string>
+    <string name="widget_ram">RAM</string>
+    <string name="widget_disk">Disk</string>
+    <string name="details_make_active">Make active</string>
+    <string name="details_remove">Remove server</string>
+    <string name="details_remove_text">This server and its token will be removed from this device.</string>
+    <string name="details_remove_confirm">Remove</string>
+    <string name="details_uptime">uptime %1$s</string>
+    <plurals name="agents_count">
+        <item quantity="one">%d agent</item>
+        <item quantity="other">%d agents</item>
+    </plurals>
+
     <!-- settings -->
     <string name="settings_title">Settings</string>
     <string name="settings_about">About</string>

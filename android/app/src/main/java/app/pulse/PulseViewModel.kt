@@ -18,23 +18,23 @@ import app.pulse.data.combineSelected
 import app.pulse.net.ConnState
 import app.pulse.net.PulseError
 import app.pulse.net.WsPulseRepository
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
  * Сессия приложения поверх списка серверов ([ServersStore]).
  *
- * Активный сервер определяет реализацию [PulseRepository]: живой WS-канал
- * для реального релея, мок для демо. Переключение сервера закрывает старый
- * репозиторий и подменяет его — экраны перерисовываются на новых потоках.
+ * Все добавленные серверы подключены одновременно (по одному WS на релей):
+ * их данные собираются в per-server потоки для виджетов ([serverStates],
+ * [serverMetrics], [serverAgents]), а [activeServerId] определяет, какой
+ * репозиторий показан на основных вкладках.
  */
 class PulseViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -43,25 +43,34 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
     val servers = MutableStateFlow(serversStore.load())
     val activeServerId = MutableStateFlow(serversStore.activeId())
 
-    private val repoFlow = MutableStateFlow<PulseRepository?>(null)
+    private val repos = linkedMapOf<String, PulseRepository>()
 
-    val connectionState: Flow<ConnState> = repoFlow.flatMapLatest { repo ->
+    // ---- данные по каждому серверу (для виджетов в окне «Серверы») ----
+    val serverStates = MutableStateFlow<Map<String, ConnState>>(emptyMap())
+    val serverMetrics = MutableStateFlow<Map<String, MetricsUi>>(emptyMap())
+    val serverAgents = MutableStateFlow<Map<String, Map<String, String>>>(emptyMap())
+    val serverContainers = MutableStateFlow<Map<String, List<ContainerUi>>>(emptyMap())
+
+    // ---- репозиторий активного сервера (основные вкладки) ----
+    private val displayRepo = MutableStateFlow<PulseRepository?>(null)
+
+    val connectionState: Flow<ConnState> = displayRepo.flatMapLatest { repo ->
         repo?.connectionState ?: flowOf(ConnState.DISCONNECTED)
     }
-    val agents: Flow<Map<String, String>> = repoFlow.flatMapLatest { repo ->
+    val agents: Flow<Map<String, String>> = displayRepo.flatMapLatest { repo ->
         repo?.agents ?: flowOf(emptyMap())
     }
-    val metricsByAgent: Flow<Map<String, MetricsUi>> = repoFlow.flatMapLatest { repo ->
+    val metricsByAgent: Flow<Map<String, MetricsUi>> = displayRepo.flatMapLatest { repo ->
         repo?.metricsByAgent ?: flowOf(emptyMap())
     }
-    val containersByAgent: Flow<Map<String, List<ContainerUi>>> = repoFlow.flatMapLatest { repo ->
+    val containersByAgent: Flow<Map<String, List<ContainerUi>>> = displayRepo.flatMapLatest { repo ->
         repo?.containersByAgent ?: flowOf(emptyMap())
     }
-    val logLines: Flow<List<LogLineUi>> = repoFlow.flatMapLatest { repo ->
+    val logLines: Flow<List<LogLineUi>> = displayRepo.flatMapLatest { repo ->
         repo?.logLines ?: flowOf(emptyList())
     }
-    val events: Flow<List<AlertUi>> = repoFlow.flatMapLatest { repo ->
-        repo?.events ?: flowOf(emptyList<AlertUi>())
+    val events: Flow<List<AlertUi>> = displayRepo.flatMapLatest { repo ->
+        repo?.events ?: flowOf(emptyList())
     }
 
     /** Выбранный агент внутри активного сервера. */
@@ -77,7 +86,9 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         migrateLegacyConfig()
-        activate(activeServerId.value ?: servers.value.firstOrNull()?.id)
+        syncRepos()
+        if (activeServerId.value == null) activeServerId.value = servers.value.firstOrNull()?.id
+        displayRepo.value = repos[activeServerId.value]
 
         viewModelScope.launch {
             agents.collect { map ->
@@ -86,8 +97,111 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+    }
+
+    fun repoFor(id: String?): PulseRepository? = id?.let { repos[it] }
+
+    fun selectServer(id: String) {
+        if (activeServerId.value == id) return
+        serversStore.setActive(id)
+        activeServerId.value = id
+        displayRepo.value = repos[id]
+        selectedAgent.value = null
+        lastLogsContainer = null
+    }
+
+    /** Добавляет сервер, подключает его и сразу делает активным. */
+    fun addServer(relayUrl: String, token: String) {
+        val config = serversStore.add(
+            relayUrl = relayUrl,
+            token = token,
+            label = ServersStore.labelForUrl(relayUrl),
+        )
+        servers.value = serversStore.load()
+        syncRepos()
+        selectServer(config.id)
+    }
+
+    /** Демо-режим как псевдо-сервер. */
+    fun addDemo(demoLabel: String) {
+        serversStore.addDemo(demoLabel)
+        servers.value = serversStore.load()
+        syncRepos()
+        selectServer(ServersStore.DEMO_ID)
+    }
+
+    fun removeServer(id: String) {
+        serversStore.remove(id)
+        servers.value = serversStore.load()
+        repos.remove(id)?.close()
+        dropServerData(id)
+        if (activeServerId.value == id) {
+            activeServerId.value = servers.value.firstOrNull()?.id
+            displayRepo.value = repos[activeServerId.value]
+            selectedAgent.value = null
+            lastLogsContainer = null
+        }
+    }
+
+    /** Полный сброс: удаляет все серверы и возвращает приложение к онбордингу. */
+    fun resetAll() {
+        repos.values.forEach { it.close() }
+        repos.clear()
+        serversStore.clear()
+        servers.value = emptyList()
+        activeServerId.value = null
+        displayRepo.value = null
+        selectedAgent.value = null
+        lastLogsContainer = null
+        serverStates.value = emptyMap()
+        serverMetrics.value = emptyMap()
+        serverAgents.value = emptyMap()
+        serverContainers.value = emptyMap()
+    }
+
+    private fun syncRepos() {
+        val wanted = servers.value.map { it.id }.toSet()
+        // отключаем удаленные
+        repos.keys.filterNot { it in wanted }.forEach { id ->
+            repos.remove(id)?.close()
+            dropServerData(id)
+        }
+        // подключаем новые
+        servers.value.forEach { cfg ->
+            if (!repos.containsKey(cfg.id)) {
+                attach(
+                    cfg.id,
+                    when {
+                        cfg.isDemo -> MockPulseRepository()
+                        else -> WsPulseRepository(ServerSecretStore.ServerConfig(cfg.relayUrl, cfg.token))
+                    },
+                )
+            }
+        }
+    }
+
+    /** Подключает репозиторий и подписывает его потоки на per-server состояние. */
+    private fun attach(id: String, repo: PulseRepository) {
+        repos[id] = repo
         viewModelScope.launch {
-            events.collect { list ->
+            repo.connectionState.collect { st -> serverStates.update { it + (id to st) } }
+        }
+        viewModelScope.launch {
+            repo.agents.collect { m -> serverAgents.update { it + (id to m) } }
+        }
+        viewModelScope.launch {
+            repo.metricsByAgent.collect { m ->
+                aggregate(m)?.let { agg -> serverMetrics.update { it + (id to agg) } }
+            }
+        }
+        viewModelScope.launch {
+            repo.containersByAgent.collect { m ->
+                serverContainers.update { it + (id to m.values.flatten()) }
+            }
+        }
+        // алерты со всех серверов — в snackbar
+        viewModelScope.launch {
+            repo.events.collect { list ->
                 val alert = list.firstOrNull() ?: return@collect
                 when (alert.kind) {
                     "CONTAINER_DIED", "OOM" ->
@@ -103,53 +217,24 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun selectServer(id: String) {
-        if (activeServerId.value == id) return
-        serversStore.setActive(id)
-        activeServerId.value = id
-        activate(id)
+    private fun dropServerData(id: String) {
+        serverStates.update { it - id }
+        serverMetrics.update { it - id }
+        serverAgents.update { it - id }
+        serverContainers.update { it - id }
     }
 
-    /** Добавляет сервер и сразу делает его активным. */
-    fun addServer(relayUrl: String, token: String) {
-        val config = serversStore.add(
-            relayUrl = relayUrl,
-            token = token,
-            label = ServersStore.labelForUrl(relayUrl),
+    /** Сводные метрики сервера для виджета (средний CPU, суммарная память). */
+    private fun aggregate(byAgent: Map<String, MetricsUi>): MetricsUi? {
+        if (byAgent.isEmpty()) return null
+        val list = byAgent.values.toList()
+        if (list.size == 1) return list[0]
+        val n = list.size
+        return list.first().copy(
+            cpuPercent = list.sumOf { it.cpuPercent } / n,
+            memUsedBytes = list.sumOf { it.memUsedBytes },
+            memTotalBytes = list.sumOf { it.memTotalBytes },
         )
-        servers.value = serversStore.load()
-        selectServer(config.id)
-    }
-
-    /** Демо-режим как псевдо-сервер. */
-    fun addDemo(demoLabel: String) {
-        serversStore.addDemo(demoLabel)
-        servers.value = serversStore.load()
-        selectServer(ServersStore.DEMO_ID)
-    }
-
-    fun removeServer(id: String) {
-        serversStore.remove(id)
-        servers.value = serversStore.load()
-        if (activeServerId.value == id) {
-            activate(servers.value.firstOrNull()?.id)
-        }
-    }
-
-    private fun activate(id: String?) {
-        repoFlow.value?.close()
-        selectedAgent.value = null
-        lastLogsContainer = null
-        repoFlow.value = id?.let { serverId ->
-            val config = servers.value.firstOrNull { it.id == serverId }
-            when {
-                config == null -> null
-                config.isDemo -> MockPulseRepository()
-                else -> WsPulseRepository(
-                    ServerSecretStore.ServerConfig(config.relayUrl, config.token),
-                )
-            }
-        }
     }
 
     /** Однократный перенос старого одиночного конфига в список серверов. */
@@ -174,20 +259,20 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
         if (selectedAgent.value != agentId) {
             selectedAgent.value = agentId
             // активный стрим логов принадлежит прежнему агенту — перезапросим
-            lastLogsContainer?.let { repoFlow.value?.requestLogs(agentId, it) }
+            lastLogsContainer?.let { displayRepo.value?.requestLogs(agentId, it) }
         }
     }
 
     fun startLogs(containerId: String) {
         lastLogsContainer = containerId
         val agent = selectedAgent.value ?: return
-        repoFlow.value?.requestLogs(agent, containerId)
+        displayRepo.value?.requestLogs(agent, containerId)
     }
 
     fun action(containerId: String, kind: String) {
         val agent = selectedAgent.value ?: return
         viewModelScope.launch {
-            repoFlow.value?.action(agent, containerId, kind)
+            displayRepo.value?.action(agent, containerId, kind)
                 ?.onFailure { e ->
                     val app = getApplication<Application>()
                     val message = when (e) {
@@ -201,19 +286,8 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Полный сброс: удаляет все серверы и возвращает приложение к онбордингу. */
-    fun resetAll() {
-        repoFlow.value?.close()
-        repoFlow.value = null
-        serversStore.clear()
-        servers.value = emptyList()
-        activeServerId.value = null
-        selectedAgent.value = null
-        lastLogsContainer = null
-    }
-
     override fun onCleared() {
-        repoFlow.value?.close()
+        repos.values.forEach { it.close() }
     }
 
     class Factory(private val app: Application) : ViewModelProvider.Factory {

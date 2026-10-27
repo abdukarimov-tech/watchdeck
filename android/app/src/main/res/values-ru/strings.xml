@@ -8,6 +8,25 @@
     <string name="cd_remove_server">Удалить сервер</string>
     <string name="demo_label">Демо</string>
 
+    <!-- servers sheet / details -->
+    <string name="servers_active_badge">активный</string>
+    <string name="servers_demo_caption">демо-режим — пример данных</string>
+    <string name="servers_connecting_caption">ждём данные…</string>
+    <string name="widget_cpu">CPU</string>
+    <string name="widget_ram">ОЗУ</string>
+    <string name="widget_disk">Диск</string>
+    <string name="details_make_active">Сделать активным</string>
+    <string name="details_remove">Удалить сервер</string>
+    <string name="details_remove_text">Этот сервер и его токен будут удалены с устройства.</string>
+    <string name="details_remove_confirm">Удалить</string>
+    <string name="details_uptime">аптайм %1$s</string>
+    <plurals name="agents_count">
+        <item quantity="one">%d агент</item>
+        <item quantity="few">%d агента</item>
+        <item quantity="many">%d агентов</item>
+        <item quantity="other">%d агентов</item>
+    </plurals>
+
     <!-- settings -->
     <string name="settings_title">Настройки</string>
     <string name="settings_about">О приложении</string>

@@ -53,57 +53,71 @@ private fun stateColor(state: String) = when (state) {
 fun ContainersScreen(
     containers: List<ContainerUi>,
     onAction: (containerId: String, kind: String) -> Unit,
+    canAct: Boolean = true,
 ) {
-    var confirmFor by remember { mutableStateOf<ContainerUi?>(null) }
-
     LazyColumn(
         modifier = Modifier.padding(top = 4.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
     ) {
         items(containers, key = { it.id }) { c ->
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(start = 16.dp, top = 14.dp, bottom = 14.dp, end = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    StatusDot(stateColor(c.state), size = 10.dp)
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(c.name, style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            c.image,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontFamily = FontFamily.Monospace,
-                            maxLines = 1,
-                        )
-                        Spacer(Modifier.height(3.dp))
-                        Text(
-                            c.status,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = stateColor(c.state),
-                        )
-                    }
-                    if (c.state == "RUNNING") {
-                        ActionButton(
-                            icon = Icons.Filled.Refresh,
-                            contentDescription = stringResource(R.string.cd_restart),
-                            container = MaterialTheme.colorScheme.primaryContainer,
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            onClick = { confirmFor = c },
-                        )
-                    } else {
-                        ActionButton(
-                            icon = Icons.Filled.PlayArrow,
-                            contentDescription = stringResource(R.string.cd_start),
-                            container = MaterialTheme.colorScheme.secondaryContainer,
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                            onClick = { onAction(c.id, "ACTION_START") },
-                        )
-                    }
+            ContainerCard(c = c, canAct = canAct, onAction = onAction)
+        }
+    }
+}
+
+/** Карточка контейнера: статусная точка, образ, кнопки действий с подтверждением. */
+@Composable
+internal fun ContainerCard(
+    c: ContainerUi,
+    canAct: Boolean,
+    onAction: (containerId: String, kind: String) -> Unit,
+) {
+    var confirmFor by remember { mutableStateOf<ContainerUi?>(null) }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, top = 14.dp, bottom = 14.dp, end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(c.name, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    c.image,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontFamily = FontFamily.Monospace,
+                    maxLines = 1,
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    c.status,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = stateColor(c.state),
+                )
+            }
+            if (canAct) {
+                if (c.state == "RUNNING") {
+                    ActionButton(
+                        icon = Icons.Filled.Refresh,
+                        contentDescription = stringResource(R.string.cd_restart),
+                        container = MaterialTheme.colorScheme.primaryContainer,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        onClick = { confirmFor = c },
+                    )
+                } else {
+                    ActionButton(
+                        icon = Icons.Filled.PlayArrow,
+                        contentDescription = stringResource(R.string.cd_start),
+                        container = MaterialTheme.colorScheme.secondaryContainer,
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                        onClick = { onAction(c.id, "ACTION_START") },
+                    )
                 }
             }
         }

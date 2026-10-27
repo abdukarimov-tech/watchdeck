@@ -87,7 +87,7 @@ fun DashboardScreen(metrics: MetricsUi?) {
 }
 
 @Composable
-private fun GaugeCard(
+internal fun GaugeCard(
     title: String,
     value: String,
     fraction: Float,
@@ -129,7 +129,7 @@ private fun GaugeCard(
 }
 
 @Composable
-private fun NetworkCard(metrics: MetricsUi) {
+internal fun NetworkCard(metrics: MetricsUi) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
             Text(
@@ -156,7 +156,7 @@ private fun RateRow(icon: androidx.compose.ui.graphics.vector.ImageVector, tint:
 }
 
 @Composable
-private fun DiskCard(disk: DiskUi) {
+internal fun DiskCard(disk: DiskUi) {
     val fraction = disk.usedBytes.toFloat() / disk.totalBytes.toFloat()
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
         Column(

@@ -1,5 +1,12 @@
 <resources>
-    <!-- имя бренда не переводится: Watchdeck во всех локалях (fallback на values/) -->
+    <!-- имя бренда не переводится: WatchDeck во всех локалях (fallback на values/) -->
+
+    <!-- servers -->
+    <string name="header_servers">Серверы</string>
+    <string name="header_agents">Агенты этого сервера</string>
+    <string name="add_server">Добавить сервер</string>
+    <string name="cd_remove_server">Удалить сервер</string>
+    <string name="demo_label">Демо</string>
 
     <!-- connection banner -->
     <string name="conn_connecting">Подключение к релею…</string>

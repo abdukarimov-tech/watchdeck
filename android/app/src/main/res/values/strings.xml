@@ -1,5 +1,12 @@
 <resources>
-    <string name="app_name">Watchdeck</string>
+    <string name="app_name">WatchDeck</string>
+
+    <!-- servers -->
+    <string name="header_servers">Servers</string>
+    <string name="header_agents">Agents of this server</string>
+    <string name="add_server">Add server</string>
+    <string name="cd_remove_server">Remove server</string>
+    <string name="demo_label">Demo</string>
 
     <!-- connection banner -->
     <string name="conn_connecting">Connecting to relay…</string>

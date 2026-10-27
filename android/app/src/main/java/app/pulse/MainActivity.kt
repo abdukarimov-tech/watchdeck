@@ -2,7 +2,6 @@ package app.pulse
 
 import android.Manifest
 import android.app.Application
-import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -15,17 +14,21 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -46,10 +49,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
-import app.pulse.crypto.ServerSecretStore
-import app.pulse.data.MockPulseRepository
+import app.pulse.crypto.ServersStore
 import app.pulse.net.ConnState
-import app.pulse.net.WsPulseRepository
 import app.pulse.ui.components.StatusDot
 import app.pulse.ui.screens.ContainersScreen
 import app.pulse.ui.screens.DashboardScreen
@@ -62,14 +63,8 @@ import app.pulse.ui.theme.PulseTheme
 
 class MainActivity : ComponentActivity() {
 
-    private lateinit var store: ServerSecretStore
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        store = ServerSecretStore(this)
-        val prefs = getSharedPreferences("pulse_mode", Context.MODE_PRIVATE)
-        val mode = prefs.getString(KEY_MODE, null)
-
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED
@@ -80,46 +75,22 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             PulseTheme {
-                when (mode) {
-                    MODE_DEMO -> MainScreen(
-                        vm = viewModel(
-                            key = "demo",
-                            factory = PulseViewModel.Factory(application, MockPulseRepository()),
-                        ),
-                    )
-                    MODE_LIVE -> {
-                        val config = remember { store.load() }
-                        if (config == null) {
-                            OnboardingScreen { url, token, demo -> finishOnboarding(prefs, url, token, demo) }
+                val app = application
+                val vm: PulseViewModel = viewModel(factory = PulseViewModel.Factory(app))
+                val servers by vm.servers.collectAsState()
+                if (servers.isEmpty()) {
+                    OnboardingScreen { url, token, demo ->
+                        if (demo) {
+                            vm.addDemo(getString(R.string.demo_label))
                         } else {
-                            MainScreen(
-                                vm = viewModel(
-                                    key = "live",
-                                    factory = PulseViewModel.Factory(application, WsPulseRepository(config)),
-                                ),
-                            )
+                            vm.addServer(url, token)
                         }
                     }
-                    else -> OnboardingScreen { url, token, demo -> finishOnboarding(prefs, url, token, demo) }
+                } else {
+                    MainScreen(vm)
                 }
             }
         }
-    }
-
-    private fun finishOnboarding(prefs: android.content.SharedPreferences, url: String, token: String, demo: Boolean) {
-        if (demo) {
-            prefs.edit().putString(KEY_MODE, MODE_DEMO).apply()
-        } else {
-            store.save(ServerSecretStore.ServerConfig(url, token))
-            prefs.edit().putString(KEY_MODE, MODE_LIVE).apply()
-        }
-        recreate()
-    }
-
-    private companion object {
-        const val KEY_MODE = "mode"
-        const val MODE_DEMO = "demo"
-        const val MODE_LIVE = "live"
     }
 }
 
@@ -131,18 +102,34 @@ private enum class Tab(val titleRes: Int, val icon: androidx.compose.ui.graphics
 
 @Composable
 private fun MainScreen(vm: PulseViewModel) {
-    val connectionState by vm.connectionState.collectAsState()
-    val agents by vm.agents.collectAsState()
+    val connectionState by vm.connectionState.collectAsState(initial = ConnState.DISCONNECTED)
+    val servers by vm.servers.collectAsState()
+    val activeServerId by vm.activeServerId.collectAsState()
+    val agents by vm.agents.collectAsState(initial = emptyMap())
     val selectedAgent by vm.selectedAgent.collectAsState()
     val metrics by vm.metrics.collectAsState(initial = null)
     val containers by vm.containers.collectAsState(initial = emptyList())
-    val logs by vm.logLines.collectAsState()
+    val logs by vm.logLines.collectAsState(initial = emptyList())
     val toasts = remember { vm.toasts }
     val snackbar = remember { SnackbarHostState() }
     var tab by remember { mutableStateOf(Tab.Dashboard) }
 
     LaunchedEffect(Unit) {
         toasts.collect { snackbar.showSnackbar(it) }
+    }
+    var addingServer by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    if (addingServer) {
+        OnboardingScreen { url, token, demo ->
+            addingServer = false
+            if (demo) {
+                vm.addDemo(context.getString(R.string.demo_label))
+            } else {
+                vm.addServer(url, token)
+            }
+        }
+        return
     }
 
     Scaffold(
@@ -168,9 +155,14 @@ private fun MainScreen(vm: PulseViewModel) {
         Column(Modifier.padding(padding)) {
             ServerHeader(
                 connectionState = connectionState,
+                servers = servers,
+                activeServerId = activeServerId,
                 agents = agents,
                 selectedAgent = selectedAgent,
-                onSelect = vm::selectAgent,
+                onSelectServer = vm::selectServer,
+                onAddServer = { addingServer = true },
+                onRemoveServer = vm::removeServer,
+                onSelectAgent = vm::selectAgent,
             )
             Box {
                 when (tab) {
@@ -192,12 +184,18 @@ private fun MainScreen(vm: PulseViewModel) {
 @Composable
 private fun ServerHeader(
     connectionState: ConnState,
+    servers: List<ServersStore.ServerConfig>,
+    activeServerId: String?,
     agents: Map<String, String>,
     selectedAgent: String?,
-    onSelect: (String) -> Unit,
+    onSelectServer: (String) -> Unit,
+    onAddServer: () -> Unit,
+    onRemoveServer: (String) -> Unit,
+    onSelectAgent: (String) -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
-    val hostname = selectedAgent?.let { agents[it] }.orEmpty().ifEmpty { selectedAgent.orEmpty() }
+    val activeServer = servers.firstOrNull { it.id == activeServerId }
+    val hostname = selectedAgent?.let { agents[it] }.orEmpty()
 
     Row(
         Modifier
@@ -207,7 +205,7 @@ private fun ServerHeader(
     ) {
         Column(Modifier.weight(1f)) {
             Text(
-                hostname.ifEmpty { stringResource(R.string.app_name) },
+                hostname.ifEmpty { activeServer?.label?.ifEmpty { stringResource(R.string.app_name) } ?: stringResource(R.string.app_name) },
                 style = MaterialTheme.typography.headlineSmall,
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -225,19 +223,74 @@ private fun ServerHeader(
                 )
             }
         }
-        if (agents.size > 1) {
-            Box {
-                androidx.compose.material3.FilledTonalButton(onClick = { menuOpen = true }) {
-                    Text(stringResource(R.string.header_switch_server))
-                    Icon(Icons.Filled.ExpandMore, contentDescription = null)
+        Box {
+            FilledTonalButton(
+                onClick = { menuOpen = true },
+                colors = androidx.compose.material3.ButtonDefaults.filledTonalButtonColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                ),
+            ) {
+                Text(stringResource(R.string.header_switch_server))
+                Icon(Icons.Filled.ExpandMore, contentDescription = null)
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                // ---- серверы (релеи) ----
+                DropdownMenuCaption(stringResource(R.string.header_servers))
+                servers.forEach { server ->
+                    DropdownMenuItem(
+                        text = { Text(server.label.ifEmpty { server.relayUrl.ifEmpty { stringResource(R.string.demo_label) } }) },
+                        onClick = {
+                            menuOpen = false
+                            onSelectServer(server.id)
+                        },
+                        trailingIcon = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (server.id == activeServerId) {
+                                    Icon(
+                                        Icons.Filled.Check,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                                IconButton(onClick = { onRemoveServer(server.id) }) {
+                                    Icon(
+                                        Icons.Filled.Close,
+                                        contentDescription = stringResource(R.string.cd_remove_server),
+                                        modifier = Modifier.padding(0.dp),
+                                    )
+                                }
+                            }
+                        },
+                    )
                 }
-                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.add_server)) },
+                    onClick = {
+                        menuOpen = false
+                        onAddServer()
+                    },
+                    leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                )
+
+                // ---- агенты внутри активного релея ----
+                if (agents.size > 1) {
+                    DropdownMenuCaption(stringResource(R.string.header_agents))
                     agents.forEach { (id, host) ->
                         DropdownMenuItem(
                             text = { Text(host.ifEmpty { id }) },
                             onClick = {
                                 menuOpen = false
-                                onSelect(id)
+                                onSelectAgent(id)
+                            },
+                            trailingIcon = {
+                                if (id == selectedAgent) {
+                                    Icon(
+                                        Icons.Filled.Check,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
                             },
                         )
                     }
@@ -245,4 +298,14 @@ private fun ServerHeader(
             }
         }
     }
+}
+
+@Composable
+private fun DropdownMenuCaption(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+    )
 }

@@ -62,8 +62,6 @@ fun OnboardingScreen(vm: PulseViewModel, onFinished: () -> Unit = {}) {
     var privateKey by remember { mutableStateOf("") }
     var keyPassphrase by remember { mutableStateOf("") }
 
-    var relayUrl by remember { mutableStateOf("") }
-    var adminToken by remember { mutableStateOf("") }
     var demo by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -72,8 +70,9 @@ fun OnboardingScreen(vm: PulseViewModel, onFinished: () -> Unit = {}) {
     val servers by vm.servers.collectAsState()
     val running = installState != null && installState?.done == false
     val demoLabel = stringResource(R.string.demo_label)
-    val errUrl = stringResource(R.string.onboarding_error_url)
+    val errHost = stringResource(R.string.onboarding_error_url)
     val errUser = stringResource(R.string.ssh_user)
+    val errToken = stringResource(R.string.onboarding_error_token)
 
     // после успешной установки сервер добавлен — сообщаем наверху об окончании
     LaunchedEffect(installState?.done) {
@@ -198,36 +197,6 @@ fun OnboardingScreen(vm: PulseViewModel, onFinished: () -> Unit = {}) {
             }
         }
 
-        Spacer(Modifier.height(16.dp))
-
-        // ---- релей ----
-        FormCard(title = stringResource(R.string.relay_section)) {
-            OutlinedTextField(
-                value = relayUrl,
-                onValueChange = { relayUrl = it.trim(); error = null },
-                label = { Text(stringResource(R.string.onboarding_relay_url)) },
-                placeholder = { Text(stringResource(R.string.onboarding_relay_url_hint)) },
-                singleLine = true,
-                shape = MaterialTheme.shapes.medium,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(10.dp))
-            OutlinedTextField(
-                value = adminToken,
-                onValueChange = { adminToken = it.trim(); error = null },
-                label = { Text(stringResource(R.string.relay_admin_token)) },
-                singleLine = true,
-                shape = MaterialTheme.shapes.medium,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(10.dp))
-            Text(
-                stringResource(R.string.relay_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
         error?.let {
             Spacer(Modifier.height(8.dp))
             Text(
@@ -246,22 +215,19 @@ fun OnboardingScreen(vm: PulseViewModel, onFinished: () -> Unit = {}) {
                     AuthMode.PASSWORD -> SshInstaller.SshConfig.Auth.Password(password)
                     AuthMode.KEY -> SshInstaller.SshConfig.Auth.Key(privateKey, keyPassphrase.ifBlank { null })
                 }
-                val rel = relayUrl.trim()
                 when {
                     demo -> {
                         vm.addDemo(demoLabel)
                         return@Button
                     }
-                    host.isBlank() -> error = errUrl
-                    rel.startsWith("wss://") || rel.startsWith("ws://") -> {
-                        if (username.isBlank()) {
-                            error = errUser
-                        } else {
-                            error = null
-                            vm.installAndConnect(host, portNum, username, auth, rel, adminToken)
-                        }
+                    host.isBlank() -> error = errHost
+                    username.isBlank() -> error = errUser
+                    authMode == AuthMode.PASSWORD && password.isBlank() -> error = errToken
+                    authMode == AuthMode.KEY && privateKey.isBlank() -> error = errToken
+                    else -> {
+                        error = null
+                        vm.installAndConnect(host, portNum, username, auth)
                     }
-                    else -> error = errUrl
                 }
             },
             enabled = !running,

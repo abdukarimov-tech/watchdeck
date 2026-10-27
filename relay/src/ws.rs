@@ -105,6 +105,13 @@ async fn agent_socket(st: AppState, agent_id: String, socket: WebSocket) {
             Some(Payload::Hello(hello)) => {
                 st.register_agent(agent_id.clone(), hello.hostname.clone(), tx.clone());
                 info!(%agent_id, hostname = %hello.hostname, "agent hello");
+                notify_event(
+                    &st,
+                    &agent_id,
+                    crate::pb::EventKind::ServerOnline,
+                    "server online",
+                    None,
+                );
             }
             Some(Payload::Ping(_)) => {
                 // ответ не нужен: tungstenite сам отвечает на протокольные ping,
@@ -166,6 +173,63 @@ async fn agent_socket(st: AppState, agent_id: String, socket: WebSocket) {
 
     st.unregister_agent(&agent_id);
     writer.abort();
+
+    // watchdog: агент отвалился (упал сервер) — алерт клиентам + push
+    notify_event(
+        &st,
+        &agent_id,
+        crate::pb::EventKind::ServerOffline,
+        "server unreachable",
+        None,
+    );
+}
+
+/// Алерт о жизненном цикле сервера: в историю, клиентам и в push.
+fn notify_event(
+    st: &AppState,
+    agent_id: &str,
+    kind: crate::pb::EventKind,
+    message: &str,
+    container: Option<&str>,
+) {
+    let alert = Alert {
+        agent_id: agent_id.to_owned(),
+        kind: kind.as_str_name().into(),
+        container_name: container.unwrap_or_default().into(),
+        message: message.into(),
+        at_unix: crate::db::now_unix() as i64,
+    };
+    if let Err(e) = st.db.insert_alert(&alert) {
+        warn!(%agent_id, error = %e, "failed to store server alert");
+    }
+    st.forward_to_clients(
+        agent_id,
+        Msg {
+            id: 0,
+            target: String::new(),
+            payload: Some(Payload::EventAlert(EventAlert {
+                kind: kind as i32,
+                container_id: String::new(),
+                container_name: String::new(),
+                at_unix: alert.at_unix,
+                message: message.into(),
+            })),
+        },
+    );
+    let st2 = st.clone();
+    let agent = agent_id.to_owned();
+    let msg = message.to_owned();
+    tokio::spawn(async move {
+        st2.fcm
+            .push_container_alert(
+                &st2.db.device_tokens(&agent).unwrap_or_default(),
+                &agent,
+                &agent,
+                &msg,
+                kind.as_str_name(),
+            )
+            .await;
+    });
 }
 
 #[derive(serde::Deserialize, Default)]

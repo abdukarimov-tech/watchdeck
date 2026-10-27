@@ -27,21 +27,27 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y musl-tools gcc-aarch64-linux-gnu
-      - name: Build
+      - name: Build agent
         run: cargo build --release --target ${{ matrix.target }}
         working-directory: agent
+      - name: Build relay
+        run: cargo build --release --target ${{ matrix.target }}
+        working-directory: relay
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
-      - name: Prepare artifact
+      - name: Prepare artifacts
         run: |
-          cp agent/target/${{ matrix.target }}/release/pulse-agent ${{ matrix.artifact }}
-          sha256sum ${{ matrix.artifact }} > ${{ matrix.artifact }}.sha256
+          cp agent/target/${{ matrix.target }}/release/pulse-agent pulse-agent-${{ matrix.artifact }}
+          cp relay/target/${{ matrix.target }}/release/pulse-relay pulse-relay-${{ matrix.artifact }}
+          sha256sum pulse-agent-${{ matrix.artifact }} pulse-relay-${{ matrix.artifact }} > sha256.txt
+        working-directory: .
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
+          name: binaries-${{ matrix.artifact }}
           path: |
-            ${{ matrix.artifact }}
-            ${{ matrix.artifact }}.sha256
+            pulse-agent-${{ matrix.artifact }}
+            pulse-relay-${{ matrix.artifact }}
+            sha256.txt
 
   android-apk:
     name: Android release APK

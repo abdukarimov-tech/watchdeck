@@ -1,6 +1,6 @@
 package app.pulse.net
 
-import app.pulse.crypto.ServerSecretStore
+import app.pulse.crypto.ServersStore
 import app.pulse.data.PulseRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -11,7 +11,7 @@ import kotlinx.coroutines.cancel
  * Релизная реализация репозитория: живой WS-канал к релею.
  * Владеет своим scope и закрывает его в [close].
  */
-class WsPulseRepository(config: ServerSecretStore.ServerConfig) : PulseRepository {
+class WsPulseRepository(config: ServersStore.ServerConfig) : PulseRepository {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val conn = PulseConnection(scope, config.relayUrl, config.token)

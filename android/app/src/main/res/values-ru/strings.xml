@@ -91,6 +91,16 @@
     <string name="install_button">Установить агента и подключиться</string>
     <string name="install_running">Установка агента…</string>
     <string name="install_error_prefix">Ошибка установки</string>
+    <string name="details_tab_terminal">Терминал</string>
+    <string name="terminal_placeholder">команда…</string>
+    <string name="terminal_send">Отправить команду</string>
+    <string name="terminal_unavailable">Терминал доступен только для реального сервера (не для демо).</string>
+    <string name="terminal_connect_error">Ошибка SSH: %1$s</string>
+    <string name="alert_server_offline">Сервер %1$s недоступен</string>
+    <string name="alert_server_online">Сервер %1$s снова на связи</string>
+    <string name="notif_relay_down_title">WatchDeck: релей недоступен</string>
+    <string name="notif_relay_down_body">Возможен сбой серверов. Переподключаемся…</string>
+    <string name="notif_channel_id">server_alerts</string>
     <string name="ssh_host_key_title">Проверьте ключ сервера</string>
     <string name="ssh_host_key_text">Первое подключение к этому серверу. Сверьте отпечаток ключа по доверенному каналу (например, `ssh-keyscan` с машины, которой вы доверяете) и подтвердите.</string>
     <string name="ssh_host_key_confirm">Доверять и подключиться</string>

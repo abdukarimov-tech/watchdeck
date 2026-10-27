@@ -6,12 +6,12 @@ import org.json.JSONObject
 import java.util.UUID
 
 /**
- * Список добавленных серверов (релей + client-токен) в SharedPreferences.
+ * Список добавленных серверов в SharedPreferences.
  *
- * Демо-режим — тоже «сервер» с id [DEMO_ID]: он появляется и переключается
- * в общем списке, и его можно удалить. Токены лежат зашифрованно только
- * у WsPulseRepository-конфигов; для MVP список хранится в приватном
- * хранилище приложения (allowBackup=false).
+ * ServerConfig хранит всё, что нужно приложению: адрес релея и клиентский
+ * токен (для живого канала), админ-токен релея (для выпуска агентских токенов
+ * новым серверам) и SSH-доступ (для терминала и переустановки агента).
+ * Демо-режим — тоже «сервер» с id [DEMO_ID].
  */
 class ServersStore(context: Context) {
 
@@ -20,6 +20,12 @@ class ServersStore(context: Context) {
         val label: String,
         val relayUrl: String,
         val token: String,
+        val adminToken: String = "",
+        val sshPort: Int = 22,
+        val sshUser: String = "root",
+        val sshAuthMode: String = "",      // "password" | "key"
+        val sshSecret: String = "",        // пароль или приватный ключ PEM
+        val sshKeyPass: String = "",
     ) {
         val isDemo: Boolean get() = id == DEMO_ID
     }
@@ -37,21 +43,22 @@ class ServersStore(context: Context) {
                     label = o.optString("label"),
                     relayUrl = o.optString("url"),
                     token = o.optString("token"),
+                    adminToken = o.optString("admin"),
+                    sshPort = o.optInt("ssh_port", 22),
+                    sshUser = o.optString("ssh_user", "root"),
+                    sshAuthMode = o.optString("ssh_auth"),
+                    sshSecret = o.optString("ssh_secret"),
+                    sshKeyPass = o.optString("ssh_key_pass"),
                 )
             }
         }.getOrDefault(emptyList())
     }
 
     /** Добавляет сервер, возвращает его конфиг. */
-    fun add(relayUrl: String, token: String, label: String): ServerConfig {
-        val config = ServerConfig(
-            id = UUID.randomUUID().toString(),
-            label = label,
-            relayUrl = relayUrl,
-            token = token,
-        )
-        save(load() + config)
-        return config
+    fun add(config: ServerConfig): ServerConfig {
+        val withId = if (config.id.isBlank()) config.copy(id = UUID.randomUUID().toString()) else config
+        save(load() + withId)
+        return withId
     }
 
     fun addDemo(label: String): ServerConfig {
@@ -85,7 +92,13 @@ class ServersStore(context: Context) {
                     .put("id", c.id)
                     .put("label", c.label)
                     .put("url", c.relayUrl)
-                    .put("token", c.token),
+                    .put("token", c.token)
+                    .put("admin", c.adminToken)
+                    .put("ssh_port", c.sshPort)
+                    .put("ssh_user", c.sshUser)
+                    .put("ssh_auth", c.sshAuthMode)
+                    .put("ssh_secret", c.sshSecret)
+                    .put("ssh_key_pass", c.sshKeyPass),
             )
         }
         prefs.edit().putString(KEY_SERVERS, arr.toString()).apply()

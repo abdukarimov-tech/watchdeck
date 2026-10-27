@@ -87,6 +87,16 @@
     <string name="install_button">Install agent and connect</string>
     <string name="install_running">Installing agent…</string>
     <string name="install_error_prefix">Installation failed</string>
+    <string name="details_tab_terminal">Terminal</string>
+    <string name="terminal_placeholder">command…</string>
+    <string name="terminal_send">Send command</string>
+    <string name="terminal_unavailable">Terminal requires a real server connection (not demo mode).</string>
+    <string name="terminal_connect_error">SSH error: %1$s</string>
+    <string name="alert_server_offline">Server %1$s is unreachable</string>
+    <string name="alert_server_online">Server %1$s is back online</string>
+    <string name="notif_relay_down_title">WatchDeck: relay unreachable</string>
+    <string name="notif_relay_down_body">Servers may be down. Reconnecting…</string>
+    <string name="notif_channel_id">server_alerts</string>
     <string name="ssh_host_key_title">Verify server key</string>
     <string name="ssh_host_key_text">First connection to this server. Check the key fingerprint through a trusted channel (e.g. run `ssh-keyscan` from a machine you trust) and confirm.</string>
     <string name="ssh_host_key_confirm">Trust and connect</string>

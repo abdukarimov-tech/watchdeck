@@ -17,7 +17,6 @@ import app.pulse.data.PulseRepository
 import app.pulse.data.combineSelected
 import app.pulse.net.ConnState
 import app.pulse.net.PulseError
-import app.pulse.net.RelayApi
 import app.pulse.net.SshInstaller
 import app.pulse.net.WsPulseRepository
 import kotlinx.coroutines.flow.Flow
@@ -36,7 +35,7 @@ import kotlinx.coroutines.launch
  * Все добавленные серверы подключены одновременно (по одному WS на релей):
  * их данные собираются в per-server потоки для виджетов ([serverStates],
  * [serverMetrics], [serverAgents]), а [activeServerId] определяет, какой
- * репозиторий показан на основных вкладках.
+ * репозиторий показан на основном экране.
  */
 class PulseViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -47,13 +46,13 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repos = linkedMapOf<String, PulseRepository>()
 
-    // ---- данные по каждому серверу (для виджетов в окне «Серверы») ----
+    // ---- данные по каждому серверу (для виджетов) ----
     val serverStates = MutableStateFlow<Map<String, ConnState>>(emptyMap())
     val serverMetrics = MutableStateFlow<Map<String, MetricsUi>>(emptyMap())
     val serverAgents = MutableStateFlow<Map<String, Map<String, String>>>(emptyMap())
     val serverContainers = MutableStateFlow<Map<String, List<ContainerUi>>>(emptyMap())
 
-    // ---- репозиторий активного сервера (основные вкладки) ----
+    // ---- репозиторий активного сервера ----
     private val displayRepo = MutableStateFlow<PulseRepository?>(null)
 
     val connectionState: Flow<ConnState> = displayRepo.flatMapLatest { repo ->
@@ -84,6 +83,8 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
     /** Сообщения для snackbar (ошибки действий, события алертов). */
     val toasts = MutableSharedFlow<String>(extraBufferCapacity = 8)
 
+    private var lastLogsContainer: String? = null
+
     /** Прогресс SSH-установки агента: строки лога + статус. */
     data class InstallState(val lines: List<String>, val done: Boolean, val error: String?)
     val installState = MutableStateFlow<InstallState?>(null)
@@ -91,77 +92,6 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
     /** Ожидающее подтверждение отпечатка SSH-ключа сервера. */
     data class HostKeyPrompt(val fingerprint: String, val decision: kotlinx.coroutines.CompletableDeferred<Boolean>)
     val hostKeyPrompt = MutableStateFlow<HostKeyPrompt?>(null)
-
-    fun confirmHostKey(accepted: Boolean) {
-        val prompt = hostKeyPrompt.value
-        prompt?.decision?.complete(accepted)
-        hostKeyPrompt.value = null
-        if (!accepted) {
-            installState.update {
-                PulseViewModel.InstallState(
-                    lines = (it?.lines ?: emptyList()) + "[error] cancelled: host key rejected",
-                    done = true,
-                    error = "host key rejected",
-                )
-            }
-        }
-    }
-
-    /**
-     * Полная установка: выпуск токенов через админ-API релея, SSH-подключение
-     * и установка агента, добавление сервера в приложение.
-     */
-    fun installAndConnect(
-        host: String,
-        port: Int,
-        username: String,
-        auth: SshInstaller.SshConfig.Auth,
-        relayUrl: String,
-        adminToken: String,
-    ) {
-        if (installState.value?.done == false) return
-        viewModelScope.launch {
-            val lines = mutableListOf<String>()
-            fun log(message: String) {
-                lines.add(message)
-                installState.value = InstallState(lines.toList(), done = false, error = null)
-            }
-            try {
-                installState.value = InstallState(emptyList(), done = false, error = null)
-                val api = RelayApi(relayUrl)
-                log("[relay] creating client token")
-                val clientToken = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    api.createToken(adminToken, "phone", "client")
-                }
-                log("[relay] creating agent token")
-                val agentToken = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    api.createToken(adminToken, host, "agent")
-                }
-                SshInstaller { log("[ssh] $it") }.install(
-                    SshInstaller.SshConfig(host, port, username, auth),
-                    relayUrl,
-                    agentToken,
-                    verifyHostKey = { fingerprint ->
-                        val decision = kotlinx.coroutines.CompletableDeferred<Boolean>()
-                        hostKeyPrompt.value = HostKeyPrompt(fingerprint, decision)
-                        decision.await().also { hostKeyPrompt.value = null }
-                    },
-                )
-                installState.value = InstallState(lines.toList(), done = true, error = null)
-                addServer(relayUrl, clientToken)
-            } catch (e: Exception) {
-                val message = when (e) {
-                    is net.schmizz.sshj.userauth.UserAuthException -> "SSH authentication failed (wrong login/password or key)"
-                    is java.io.IOException -> e.message ?: "io error"
-                    else -> e.toString()
-                }
-                lines.add("[error] $message")
-                installState.value = InstallState(lines.toList(), done = true, error = message)
-            }
-        }
-    }
-
-    private var lastLogsContainer: String? = null
 
     init {
         migrateLegacyConfig()
@@ -176,6 +106,7 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+        startRelayWatchdog()
     }
 
     fun repoFor(id: String?): PulseRepository? = id?.let { repos[it] }
@@ -187,18 +118,6 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
         displayRepo.value = repos[id]
         selectedAgent.value = null
         lastLogsContainer = null
-    }
-
-    /** Добавляет сервер, подключает его и сразу делает активным. */
-    fun addServer(relayUrl: String, token: String) {
-        val config = serversStore.add(
-            relayUrl = relayUrl,
-            token = token,
-            label = ServersStore.labelForUrl(relayUrl),
-        )
-        servers.value = serversStore.load()
-        syncRepos()
-        selectServer(config.id)
     }
 
     /** Демо-режим как псевдо-сервер. */
@@ -240,19 +159,17 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun syncRepos() {
         val wanted = servers.value.map { it.id }.toSet()
-        // отключаем удаленные
         repos.keys.filterNot { it in wanted }.forEach { id ->
             repos.remove(id)?.close()
             dropServerData(id)
         }
-        // подключаем новые
         servers.value.forEach { cfg ->
             if (!repos.containsKey(cfg.id)) {
                 attach(
                     cfg.id,
                     when {
                         cfg.isDemo -> MockPulseRepository()
-                        else -> WsPulseRepository(ServerSecretStore.ServerConfig(cfg.relayUrl, cfg.token))
+                        else -> WsPulseRepository(cfg)
                     },
                 )
             }
@@ -282,15 +199,18 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repo.events.collect { list ->
                 val alert = list.firstOrNull() ?: return@collect
+                val app = getApplication<Application>()
                 when (alert.kind) {
-                    "CONTAINER_DIED", "OOM" ->
-                        toasts.emit(
-                            getApplication<Application>().getString(
-                                R.string.alert_toast,
-                                alert.containerName,
-                                alert.message.ifEmpty { alert.kind },
-                            ),
-                        )
+                    "CONTAINER_DIED", "OOM" -> toasts.emit(
+                        app.getString(
+                            R.string.alert_toast,
+                            alert.containerName,
+                            alert.message.ifEmpty { alert.kind },
+                        ),
+                    )
+                    "SERVER_OFFLINE" -> toasts.emit(
+                        app.getString(R.string.alert_server_offline, alert.agentId),
+                    )
                 }
             }
         }
@@ -327,11 +247,131 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
             legacyDemo -> serversStore.addDemo(
                 getApplication<Application>().getString(R.string.demo_label),
             ).id
-            legacy != null -> serversStore.add(legacy.relayUrl, legacy.token, ServersStore.labelForUrl(legacy.relayUrl)).id
+            legacy != null -> serversStore.add(
+                ServersStore.ServerConfig(
+                    id = "",
+                    label = ServersStore.labelForUrl(legacy.relayUrl),
+                    relayUrl = legacy.relayUrl,
+                    token = legacy.token,
+                ),
+            ).id
             else -> return
         }
         serversStore.setActive(migratedId)
         servers.value = serversStore.load()
+    }
+
+    fun confirmHostKey(accepted: Boolean) {
+        val prompt = hostKeyPrompt.value
+        prompt?.decision?.complete(accepted)
+        hostKeyPrompt.value = null
+        if (!accepted) {
+            installState.update {
+                InstallState(
+                    lines = (it?.lines ?: emptyList()) + "[error] cancelled: host key rejected",
+                    done = true,
+                    error = "host key rejected",
+                )
+            }
+        }
+    }
+
+    /**
+     * Полная установка по SSH: при необходимости ставит релей на этот же
+     * сервер, выпускает токены (локально на сервере), ставит агента
+     * и добавляет сервер в приложение. Данные релея ниоткуда не вводятся.
+     */
+    fun installAndConnect(
+        host: String,
+        port: Int,
+        username: String,
+        auth: SshInstaller.SshConfig.Auth,
+    ) {
+        if (installState.value?.done == false) return
+        viewModelScope.launch {
+            val lines = mutableListOf<String>()
+            fun log(message: String) {
+                lines.add(message)
+                installState.value = InstallState(lines.toList(), done = false, error = null)
+            }
+            try {
+                installState.value = InstallState(emptyList(), done = false, error = null)
+                val result = SshInstaller { log("[ssh] $it") }.installServer(
+                    SshInstaller.SshConfig(host, port, username, auth),
+                    verifyHostKey = { fingerprint ->
+                        val decision = kotlinx.coroutines.CompletableDeferred<Boolean>()
+                        hostKeyPrompt.value = HostKeyPrompt(fingerprint, decision)
+                        decision.await().also { hostKeyPrompt.value = null }
+                    },
+                )
+                installState.value = InstallState(lines.toList(), done = true, error = null)
+                serversStore.add(
+                    ServersStore.ServerConfig(
+                        id = "",
+                        label = host,
+                        relayUrl = result.relayUrl,
+                        token = result.clientToken,
+                        adminToken = result.adminToken,
+                        sshPort = port,
+                        sshUser = username,
+                        sshAuthMode = when (auth) {
+                            is SshInstaller.SshConfig.Auth.Password -> "password"
+                            is SshInstaller.SshConfig.Auth.Key -> "key"
+                        },
+                        sshSecret = when (auth) {
+                            is SshInstaller.SshConfig.Auth.Password -> auth.password
+                            is SshInstaller.SshConfig.Auth.Key -> auth.privateKey
+                        },
+                        sshKeyPass = (auth as? SshInstaller.SshConfig.Auth.Key)?.passphrase ?: "",
+                    ),
+                )
+                servers.value = serversStore.load()
+                syncRepos()
+                selectServer(servers.value.firstOrNull { it.label == host }?.id ?: servers.value.last().id)
+            } catch (e: Exception) {
+                val message = when (e) {
+                    is net.schmizz.sshj.userauth.UserAuthException ->
+                        "SSH authentication failed (wrong login/password or key)"
+                    is java.io.IOException -> e.message ?: "io error"
+                    else -> e.toString()
+                }
+                lines.add("[error] $message")
+                installState.value = InstallState(lines.toList(), done = true, error = message)
+            }
+        }
+    }
+
+    // ---- watchdog: локальное уведомление при потере релея ----
+    private fun startRelayWatchdog() {
+        viewModelScope.launch {
+            var wasConnected = false
+            connectionState.collect { st ->
+                if (wasConnected && st == ConnState.DISCONNECTED) {
+                    postRelayDownNotification(getApplication())
+                }
+                wasConnected = st == ConnState.CONNECTED
+            }
+        }
+    }
+
+    private fun postRelayDownNotification(app: Application) {
+        val manager = app.getSystemService(Application.NOTIFICATION_SERVICE) as android.app.NotificationManager
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            manager.createNotificationChannel(
+                android.app.NotificationChannel(
+                    app.getString(R.string.notif_channel_id),
+                    app.getString(R.string.notif_channel_name),
+                    android.app.NotificationManager.IMPORTANCE_HIGH,
+                ),
+            )
+        }
+        val notification = androidx.core.app.NotificationCompat.Builder(app, app.getString(R.string.notif_channel_id))
+            .setSmallIcon(android.R.drawable.stat_notify_error)
+            .setContentTitle(app.getString(R.string.notif_relay_down_title))
+            .setContentText(app.getString(R.string.notif_relay_down_body))
+            .setAutoCancel(true)
+            .build()
+        runCatching { manager.notify(RELAY_DOWN_NOTIFICATION_ID, notification) }
     }
 
     fun selectAgent(agentId: String) {
@@ -372,5 +412,9 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
     class Factory(private val app: Application) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T = PulseViewModel(app) as T
+    }
+
+    private companion object {
+        const val RELAY_DOWN_NOTIFICATION_ID = 1001
     }
 }

@@ -146,6 +146,9 @@ enum EventKind {
   CONTAINER_DIED = 1;
   CONTAINER_STARTED = 2;
   OOM = 3;
+  // релей заметил, что агент перестал отвечать / снова на связи
+  SERVER_OFFLINE = 4;
+  SERVER_ONLINE = 5;
 }
 
 message Ping {

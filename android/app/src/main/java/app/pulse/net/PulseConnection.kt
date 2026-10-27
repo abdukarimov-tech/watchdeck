@@ -60,11 +60,12 @@ fun pulse.v1.Container.toUi(): ContainerUi = ContainerUi(
 
 fun pulse.v1.LogLine.toUi(): LogLineUi = LogLineUi(tsUnix, stderr, text)
 
-fun pulse.v1.EventAlert.toUi(): AlertUi = AlertUi(
+fun pulse.v1.EventAlert.toUi(agentId: String = ""): AlertUi = AlertUi(
     kind = kindLabel(kind),
     containerName = containerName,
     message = message,
     atUnix = atUnix,
+    agentId = agentId,
 )
 
 fun stateLabel(state: ContainerState): String = when (state) {
@@ -194,7 +195,7 @@ class PulseConnection(
                         .takeLast(MAX_LOG_BUFFER)
                 }
             Msg.PayloadCase.EVENT_ALERT ->
-                events.value = (listOf(msg.eventAlert.toUi()) + events.value).take(MAX_EVENT_BUFFER)
+                events.value = (listOf(msg.eventAlert.toUi(agent)) + events.value).take(MAX_EVENT_BUFFER)
             else -> {}
         }
     }

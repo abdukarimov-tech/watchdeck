@@ -34,6 +34,8 @@ class PulseMessagingService : FirebaseMessagingService() {
         val title = when (kind) {
             "CONTAINER_DIED" -> getString(R.string.alert_container_died, container)
             "OOM" -> getString(R.string.alert_oom, container)
+            "SERVER_OFFLINE" -> getString(R.string.alert_server_offline, agentId.ifEmpty { container })
+            "SERVER_ONLINE" -> getString(R.string.alert_server_online, agentId.ifEmpty { container })
             else -> getString(R.string.alert_generic, agentId.ifEmpty { container })
         }
         val body = if (detail.isEmpty() || agentId.isEmpty()) {

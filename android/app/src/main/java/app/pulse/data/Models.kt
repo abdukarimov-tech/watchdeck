@@ -28,6 +28,7 @@ data class AlertUi(
     val containerName: String,
     val message: String,
     val atUnix: Long,
+    val agentId: String = "",
 )
 
 fun formatBytes(bytes: Long): String {

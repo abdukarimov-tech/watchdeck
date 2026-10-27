@@ -19,4 +19,8 @@ tracing = { workspace = true }
 toml = "0.8"
 serde = { version = "1", features = ["derive"] }
 tokio-tungstenite = { version = "0.23", features = ["rustls-tls-webpki-roots"] }
+# доверие самоподписанному сертификату релея через ca_cert в конфиге;
+# default-features выключены, чтобы не притащить aws-lc-rs к ring из tungstenite
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "logging", "tls12"] }
+rustls-pemfile = "2"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

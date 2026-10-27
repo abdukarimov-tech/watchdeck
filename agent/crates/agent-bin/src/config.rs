@@ -15,6 +15,9 @@ pub struct Config {
     pub metrics_interval_secs: u64,
     #[serde(default = "default_containers_interval")]
     pub containers_interval_secs: u64,
+    /// PEM самоподписанного сертификата релея — для wss без публичного CA
+    #[serde(default)]
+    pub ca_cert: Option<String>,
 }
 
 fn default_socket() -> PathBuf {
@@ -43,6 +46,7 @@ impl Config {
                 docker_socket: default_socket(),
                 metrics_interval_secs: default_metrics_interval(),
                 containers_interval_secs: default_containers_interval(),
+                ca_cert: None,
             },
             Err(_) => {
                 anyhow::bail!(

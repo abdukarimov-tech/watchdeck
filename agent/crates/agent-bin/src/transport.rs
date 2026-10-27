@@ -12,7 +12,8 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::HeaderValue;
-use tokio_tungstenite::{connect_async, tungstenite::protocol::Message as WsMessage};
+use tokio_tungstenite::{connect_async_tls_with_config, tungstenite::protocol::Message as WsMessage};
+use tokio_tungstenite::Connector;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
@@ -28,6 +29,30 @@ const PING_INTERVAL: Duration = Duration::from_secs(30);
 const MAX_STREAM_CHUNK_LINES: usize = 200;
 
 type OutboundTx = mpsc::UnboundedSender<Vec<u8>>;
+
+/// TLS-коннектор: при заданном ca_cert доверяем только самоподписанному
+/// сертификату релея (звенья публичных CA не нужны). Без ca_cert — None,
+/// tokio-tungstenite использует webpki-roots.
+fn tls_connector(cfg: &Config) -> Result<Option<Connector>> {
+    let Some(ca_path) = cfg.ca_cert.as_deref() else {
+        return Ok(None);
+    };
+    let pem = std::fs::read(ca_path).with_context(|| format!("read ca_cert {ca_path}"))?;
+    let mut roots = rustls::RootCertStore::empty();
+    for cert in rustls_pemfile::certs(&mut pem.as_slice()) {
+        roots.add(cert?)?;
+    }
+    if roots.is_empty() {
+        anyhow::bail!("no certificates parsed from {ca_path}");
+    }
+    let tls = rustls::ClientConfig::builder_with_provider(
+        rustls::crypto::ring::default_provider().into(),
+    )
+    .with_safe_default_protocol_versions()?
+    .with_root_certificates(roots)
+    .with_no_client_auth();
+    Ok(Some(Connector::Rustls(Arc::new(tls))))
+}
 
 /// Бесконечный цикл: соединение -> сессия -> backoff -> повтор.
 pub async fn run(cfg: Config) -> Result<()> {
@@ -60,7 +85,7 @@ async fn session(cfg: &Config) -> Result<()> {
         HeaderValue::from_str(&format!("Bearer {}", cfg.token))?,
     );
 
-    let (ws, _resp) = connect_async(request)
+    let (ws, _resp) = connect_async_tls_with_config(request, None, false, tls_connector(cfg)?)
         .await
         .with_context(|| format!("connect to {}", cfg.relay_url))?;
     info!("connected to relay");

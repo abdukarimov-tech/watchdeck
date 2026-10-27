@@ -219,19 +219,34 @@ class SshInstaller(private val onLog: (String) -> Unit) {
             sh("curl -fsSL '$binaryUrl' -o /usr/local/bin/pulse-agent || wget -qO /usr/local/bin/pulse-agent '$binaryUrl'")
             sh("chmod 0755 /usr/local/bin/pulse-agent")
             sh("id pulse-agent >/dev/null 2>&1 || useradd -r -M -s /usr/sbin/nologin pulse-agent")
-            sh("(getent group docker >/dev/null 2>&1 && usermod -aG docker pulse-agent) || true")
+            // docker-группа нужна агенту для статистики контейнеров; без Docker
+            // на сервере группу из юнита надо убрать, иначе systemd не стартует
+            val hasDocker = sh("getent group docker >/dev/null 2>&1 && echo yes || echo no").trim() == "yes"
+            if (hasDocker) sh("usermod -aG docker pulse-agent")
             sh("mkdir -p /etc/pulse-agent")
-            writeFile(::sh,
-                "/etc/pulse-agent/config.toml",
-                "relay_url = \"$relayUrl\"\ntoken = \"$agentToken\"\n",
-            )
+            var agentConfig = "relay_url = \"$relayUrl\"\ntoken = \"$agentToken\"\n"
+            if (certPem.isNotEmpty()) {
+                // агент доверяет самоподписанному сертификату релея через CA-файл
+                writeFile(::sh, "/etc/pulse-agent/relay-ca.crt", "$certPem\n")
+                agentConfig += "ca_cert = \"/etc/pulse-agent/relay-ca.crt\"\n"
+            }
+            writeFile(::sh, "/etc/pulse-agent/config.toml", agentConfig)
             sh("chmod 600 /etc/pulse-agent/config.toml")
             sh("chown -R pulse-agent:pulse-agent /etc/pulse-agent")
-            writeFile(::sh, "/etc/systemd/system/pulse-agent.service", AGENT_UNIT)
+            writeFile(::sh, "/etc/systemd/system/pulse-agent.service",
+                if (hasDocker) AGENT_UNIT else AGENT_UNIT.replace("Group=docker\n", ""))
             sh("systemctl daemon-reload")
-            sh("systemctl enable --now pulse-agent")
-            val active = sh("systemctl is-active pulse-agent").trim()
-            if (active != "active") throw IOException("agent service is not active: $active")
+            sh("systemctl enable pulse-agent")
+            // restart, а не enable --now: юнит может висеть в failed/activating
+            // с прошлой попытки — restart гарантирует старт с новым конфигом
+            sh("systemctl restart pulse-agent")
+            sh("sleep 1")
+            val active = sh("systemctl is-active pulse-agent || true").trim()
+            if (active != "active") {
+                onLog("agent service state: $active")
+                onLog(sh("journalctl -u pulse-agent -n 40 --no-pager 2>&1 | tail -40 || true"))
+                throw IOException("agent service is not active: $active (see journal above)")
+            }
             onLog("agent service is active")
 
             // порт релея должен быть открыт наружу (облачный firewall — вне SSH)

@@ -196,9 +196,12 @@ class SshInstaller(private val onLog: (String) -> Unit) {
             // ---------- 3. токены через локальный API релея ----------
             fun issueToken(label: String, role: String): String {
                 val body = """{"label":"$label","role":"$role"}"""
-                val port = if (relayUrl.startsWith("wss://")) "8443" else "8080"
+                val tls = relayUrl.startsWith("wss://")
+                val port = if (tls) "8443" else "8080"
+                // -k: самоподписанный сертификат; на TLS-порту нужен https
+                val scheme = if (tls) "https" else "http"
                 val raw = sh(
-                    "curl -sk -XPOST http://127.0.0.1:$port/api/tokens " +
+                    "curl -sk -XPOST $scheme://127.0.0.1:$port/api/tokens " +
                         "-H 'X-Admin-Token: $adminToken' -H 'Content-Type: application/json' " +
                         "-d '$body'",
                 )

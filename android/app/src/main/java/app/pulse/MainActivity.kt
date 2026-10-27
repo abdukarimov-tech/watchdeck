@@ -56,6 +56,8 @@ import app.pulse.ui.screens.ContainersScreen
 import app.pulse.ui.screens.DashboardScreen
 import app.pulse.ui.screens.LogsScreen
 import app.pulse.ui.screens.OnboardingScreen
+import app.pulse.ui.screens.SettingsScreen
+import androidx.compose.material.icons.filled.Settings
 import app.pulse.ui.theme.PulseError
 import app.pulse.ui.theme.PulseSuccess
 import app.pulse.ui.theme.PulseWarn
@@ -118,7 +120,19 @@ private fun MainScreen(vm: PulseViewModel) {
         toasts.collect { snackbar.showSnackbar(it) }
     }
     var addingServer by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
+
+    if (showSettings) {
+        SettingsScreen(
+            onBack = { showSettings = false },
+            onResetData = {
+                showSettings = false
+                vm.resetAll()
+            },
+        )
+        return
+    }
 
     if (addingServer) {
         OnboardingScreen { url, token, demo ->
@@ -163,6 +177,7 @@ private fun MainScreen(vm: PulseViewModel) {
                 onAddServer = { addingServer = true },
                 onRemoveServer = vm::removeServer,
                 onSelectAgent = vm::selectAgent,
+                onOpenSettings = { showSettings = true },
             )
             Box {
                 when (tab) {
@@ -192,6 +207,7 @@ private fun ServerHeader(
     onAddServer: () -> Unit,
     onRemoveServer: (String) -> Unit,
     onSelectAgent: (String) -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val activeServer = servers.firstOrNull { it.id == activeServerId }
@@ -222,6 +238,13 @@ private fun ServerHeader(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+        }
+        androidx.compose.material3.IconButton(onClick = onOpenSettings) {
+            androidx.compose.material3.Icon(
+                Icons.Filled.Settings,
+                contentDescription = stringResource(R.string.settings_title),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         Box {
             FilledTonalButton(

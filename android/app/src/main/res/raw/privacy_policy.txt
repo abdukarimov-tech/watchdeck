@@ -1,0 +1,49 @@
+WatchDeck — Privacy Policy
+Last updated: 2026-10-27
+
+1. Summary
+WatchDeck is a self-hosted-first monitoring client. We designed it so that your
+server data never has to pass through servers we control.
+
+2. Data stored on your device
+- Relay address and client tokens for the servers you add. Tokens are stored in
+  the app's private storage and never leave the device except to authenticate
+  against your own relay over TLS.
+- App preferences (active server, language follows your device).
+
+3. Data processed by your relay
+- Metrics (CPU, memory, disk, network), container states and logs are transmitted
+  between the agent on your server and your devices through your relay
+  (self-hosted or operated by whoever deployed it for you).
+- The relay stores an alert history in its local SQLite database and route
+  metadata (which agent is connected). It does not need to persist your metrics.
+
+4. Push notifications
+- If you enable alerts, the relay sends event notifications through Google's
+  Firebase Cloud Messaging (FCM). Google processes the delivery; the message
+  payload contains only event metadata (server label, container name, event kind).
+- Your FCM device token is stored on your relay to address your device.
+
+5. Data we do not collect
+- The app contains no analytics, tracking or advertising SDKs.
+- We do not receive your metrics, logs, tokens or server addresses.
+
+6. Permissions
+- INTERNET: to talk to your relay.
+- POST_NOTIFICATIONS: to show downtime alerts (Android 13+). The app requests
+  this permission at first launch; you may decline and grant it later.
+
+7. Your controls
+- "Reset app data" in Settings removes all servers and tokens from the device.
+- Removing a server in the server menu deletes its credentials from the device.
+- Uninstalling the app removes all locally stored data.
+
+8. Children
+WatchDeck is a developer tool and is not directed at children under 13.
+
+9. Changes
+This policy may be updated with the app. The "Last updated" date above reflects
+the current version.
+
+10. Contact
+Questions about this policy: support@watchdeck.app

@@ -1,0 +1,43 @@
+WatchDeck — Terms of Service
+Last updated: 2026-10-27
+
+1. Acceptance
+By installing or using WatchDeck you agree to these terms. If you do not agree,
+do not use the app.
+
+2. What WatchDeck is
+WatchDeck is a client for monitoring servers and managing Docker containers
+through a relay service that you (or your organization) deploy and control.
+The app executes actions (start/stop/restart containers, read logs) only on
+servers you explicitly connect it to.
+
+3. Your responsibility
+- You are responsible for securing your relay, agent tokens and client tokens.
+- You confirm you have the right to administer every server you add.
+- Container actions are real operations on real servers. Confirmations in the
+  app exist for your protection — use them.
+
+4. License
+The app is licensed for your personal or internal business use. Unless the
+source code distribution states otherwise, you may not resell the app itself.
+
+5. No warranty
+THE APP IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
+Monitoring data may be delayed, incomplete or wrong. Always verify critical
+states through a second channel before acting.
+
+6. Limitation of liability
+To the maximum extent permitted by law, the authors are not liable for any
+damages, data loss or downtime arising from use of the app, including actions
+performed on your servers through it.
+
+7. Acceptable use
+Do not use WatchDeck to access servers you are not authorized to administer,
+or in violation of applicable law.
+
+8. Termination
+You may stop using the app at any time; uninstalling removes your data. We may
+update these terms with app updates; continued use constitutes acceptance.
+
+9. Contact
+support@watchdeck.app

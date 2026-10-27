@@ -66,6 +66,11 @@ class ServersStore(context: Context) {
         if (activeId() == id) prefs.edit().remove(KEY_ACTIVE).apply()
     }
 
+    /** Полная очистка (сброс данных приложения). */
+    fun clear() {
+        prefs.edit().clear().apply()
+    }
+
     fun activeId(): String? = prefs.getString(KEY_ACTIVE, null)
 
     fun setActive(id: String) {

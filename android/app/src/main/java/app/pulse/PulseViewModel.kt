@@ -201,6 +201,17 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Полный сброс: удаляет все серверы и возвращает приложение к онбордингу. */
+    fun resetAll() {
+        repoFlow.value?.close()
+        repoFlow.value = null
+        serversStore.clear()
+        servers.value = emptyList()
+        activeServerId.value = null
+        selectedAgent.value = null
+        lastLogsContainer = null
+    }
+
     override fun onCleared() {
         repoFlow.value?.close()
     }

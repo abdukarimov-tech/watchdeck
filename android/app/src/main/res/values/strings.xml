@@ -8,6 +8,26 @@
     <string name="cd_remove_server">Remove server</string>
     <string name="demo_label">Demo</string>
 
+    <!-- settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_about">About</string>
+    <string name="settings_version">Version</string>
+    <string name="settings_source">Source code</string>
+    <string name="settings_site">Website</string>
+    <string name="settings_contact">Contact support</string>
+    <string name="settings_docs">Legal</string>
+    <string name="settings_privacy">Privacy policy</string>
+    <string name="settings_terms">Terms of service</string>
+    <string name="settings_licenses">Open source licenses</string>
+    <string name="settings_licenses_intro">WatchDeck is built with amazing open source software:</string>
+    <string name="settings_data">Data</string>
+    <string name="settings_reset">Reset app data</string>
+    <string name="settings_reset_text">This removes all added servers and tokens from this device. The app will restart into onboarding. This cannot be undone.</string>
+    <string name="settings_reset_confirm">Reset everything</string>
+    <string name="settings_cancel">Cancel</string>
+    <string name="document_title_privacy">Privacy policy</string>
+    <string name="document_title_terms">Terms of service</string>
+
     <!-- connection banner -->
     <string name="conn_connecting">Connecting to relay…</string>
     <string name="conn_offline">No connection — reconnecting…</string>

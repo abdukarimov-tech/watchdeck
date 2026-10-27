@@ -8,6 +8,26 @@
     <string name="cd_remove_server">Удалить сервер</string>
     <string name="demo_label">Демо</string>
 
+    <!-- settings -->
+    <string name="settings_title">Настройки</string>
+    <string name="settings_about">О приложении</string>
+    <string name="settings_version">Версия</string>
+    <string name="settings_source">Исходный код</string>
+    <string name="settings_site">Сайт</string>
+    <string name="settings_contact">Связаться с поддержкой</string>
+    <string name="settings_docs">Документы</string>
+    <string name="settings_privacy">Политика конфиденциальности</string>
+    <string name="settings_terms">Условия использования</string>
+    <string name="settings_licenses">Лицензии открытого кода</string>
+    <string name="settings_licenses_intro">WatchDeck построен на отличном открытом ПО:</string>
+    <string name="settings_data">Данные</string>
+    <string name="settings_reset">Сбросить данные приложения</string>
+    <string name="settings_reset_text">Все добавленные серверы и токены будут удалены с этого устройства. Приложение вернётся к экрану подключения. Действие необратимо.</string>
+    <string name="settings_reset_confirm">Сбросить всё</string>
+    <string name="settings_cancel">Отмена</string>
+    <string name="document_title_privacy">Политика конфиденциальности</string>
+    <string name="document_title_terms">Условия использования</string>
+
     <!-- connection banner -->
     <string name="conn_connecting">Подключение к релею…</string>
     <string name="conn_offline">Нет соединения — переподключение…</string>

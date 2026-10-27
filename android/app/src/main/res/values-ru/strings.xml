@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Мостик</string>
+    <!-- имя бренда не переводится: Watchdeck во всех локалях (fallback на values/) -->
 
     <!-- connection banner -->
     <string name="conn_connecting">Подключение к релею…</string>

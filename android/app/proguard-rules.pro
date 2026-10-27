@@ -7,6 +7,9 @@
 # BouncyCastle нужен sshj целиком: провайдер грузится рефлексией по имени класса,
 # а регистрации JCE-алгоритмов завязаны на имена/ресурсы, которые R8 не сохраняет
 -keep class org.bouncycastle.** { *; }
+# EdDSA-Java (зависимость sshj) ссылается на JDK-класс, которого нет на Android —
+# код не вызывается, R8 достаточно не ругаться
+-dontwarn sun.security.x509.X509Key
 -dontwarn com.google.protobuf.**
 -dontwarn okhttp3.**
 -dontwarn okio.**

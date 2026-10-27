@@ -11,6 +11,10 @@ jobs:
   agent-binaries:
     name: Agent binaries (linux)
     runs-on: ubuntu-latest
+    env:
+      # иначе rustc берет host `cc` + bundled rust-lld и падает на
+      # --fix-cortex-a53-843419 (только AArch64); GNU ld флаг поддерживает
+      CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
     strategy:
       matrix:
         include:
@@ -33,8 +37,6 @@ jobs:
       - name: Build relay
         run: cargo build --release --target ${{ matrix.target }}
         working-directory: relay
-        env:
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
       - name: Prepare artifacts
         run: |
           cp agent/target/${{ matrix.target }}/release/pulse-agent pulse-agent-${{ matrix.artifact }}

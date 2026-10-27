@@ -92,6 +92,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // SSH-клиент для установки агента на сервер из приложения
+    implementation("com.hierynomus:sshj:0.38.0")
     implementation("com.google.protobuf:protobuf-kotlin-lite:4.29.3")
     // пуш-сервис; для реальной работы нужен google-services.json (см. README)
     implementation("com.google.firebase:firebase-messaging:24.1.0")

@@ -9,12 +9,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.pulse.ui.screens.OnboardingScreen
@@ -41,22 +41,11 @@ class MainActivity : ComponentActivity() {
                 val vm: PulseViewModel = viewModel(factory = PulseViewModel.Factory(app))
                 val servers by vm.servers.collectAsState()
 
-                var addingServer by remember { mutableStateOf(false) }
+                var showOnboarding by remember { mutableStateOf(false) }
                 var showSettings by remember { mutableStateOf(false) }
                 var detailsServerId by remember { mutableStateOf<String?>(null) }
-                val context = LocalContext.current
 
                 when {
-                    // добавление сервера (из онбординга или с FAB)
-                    addingServer -> OnboardingScreen { url, token, demo ->
-                        addingServer = false
-                        if (demo) {
-                            vm.addDemo(context.getString(R.string.demo_label))
-                        } else {
-                            vm.addServer(url, token)
-                        }
-                    }
-
                     showSettings -> SettingsScreen(
                         onBack = { showSettings = false },
                         onResetData = {
@@ -71,19 +60,19 @@ class MainActivity : ComponentActivity() {
                         onBack = { detailsServerId = null },
                     )
 
-                    // список серверов; без серверов — онбординг
-                    servers.isEmpty() -> OnboardingScreen { url, token, demo ->
-                        if (demo) {
-                            vm.addDemo(context.getString(R.string.demo_label))
-                        } else {
-                            vm.addServer(url, token)
-                        }
-                    }
+                    // форма добавления (с FAB): после установки закрывается сама
+                    showOnboarding -> OnboardingScreen(
+                        vm = vm,
+                        onFinished = { showOnboarding = false },
+                    )
+
+                    // список серверов; без серверов — онбординг с SSH-установкой
+                    servers.isEmpty() -> OnboardingScreen(vm = vm, onFinished = {})
 
                     else -> ServerListScreen(
                         vm = vm,
                         onOpenDetails = { detailsServerId = it },
-                        onAdd = { addingServer = true },
+                        onAdd = { showOnboarding = true },
                         onOpenSettings = { showSettings = true },
                     )
                 }

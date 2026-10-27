@@ -59,7 +59,7 @@
     <string name="tab_logs">Logs</string>
 
     <!-- onboarding -->
-    <string name="onboarding_tagline">Keep watch over your fleet — CPU, containers, logs and downtime alerts, right from your pocket.</string>
+    <string name="onboarding_tagline">Server monitoring and Docker container management: metrics, logs and downtime alerts.</string>
     <string name="onboarding_relay_url">Relay address</string>
     <string name="onboarding_relay_url_hint">wss://relay.example.com</string>
     <string name="onboarding_token">Client token</string>
@@ -69,6 +69,24 @@
     <string name="onboarding_connect">Connect</string>
     <string name="onboarding_hint_title">Tokens are issued on the relay server:</string>
     <string name="onboarding_privacy">The token is stored only on this device, encrypted with Android Keystore (StrongBox when available). It never leaves the device.</string>
+
+    <!-- ssh onboarding -->
+    <string name="ssh_section">Server access (SSH)</string>
+    <string name="ssh_host">Server host or IP</string>
+    <string name="ssh_port">Port</string>
+    <string name="ssh_user">Username</string>
+    <string name="auth_password">Password</string>
+    <string name="auth_key">SSH key</string>
+    <string name="ssh_password">Password</string>
+    <string name="ssh_key">Private key (PEM)</string>
+    <string name="ssh_key_passphrase">Key passphrase (optional)</string>
+    <string name="relay_section">Relay</string>
+    <string name="relay_hint">The relay is a small coordination service: agents and the app connect to it, it routes data and delivers push alerts. Run it on the same server or a separate one (docker compose or systemd — see the project README).</string>
+    <string name="relay_url_hint">wss://relay.example.com</string>
+    <string name="relay_admin_token">Relay admin token</string>
+    <string name="install_button">Install agent and connect</string>
+    <string name="install_running">Installing agent…</string>
+    <string name="install_error_prefix">Installation failed</string>
 
     <!-- dashboard -->
     <string name="dashboard_loading">Loading metrics…</string>

@@ -17,6 +17,8 @@ import app.pulse.data.PulseRepository
 import app.pulse.data.combineSelected
 import app.pulse.net.ConnState
 import app.pulse.net.PulseError
+import app.pulse.net.RelayApi
+import app.pulse.net.SshInstaller
 import app.pulse.net.WsPulseRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -81,6 +83,59 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Сообщения для snackbar (ошибки действий, события алертов). */
     val toasts = MutableSharedFlow<String>(extraBufferCapacity = 8)
+
+    /** Прогресс SSH-установки агента: строки лога + статус. */
+    data class InstallState(val lines: List<String>, val done: Boolean, val error: String?)
+    val installState = MutableStateFlow<InstallState?>(null)
+
+    /**
+     * Полная установка: выпуск токенов через админ-API релея, SSH-подключение
+     * и установка агента, добавление сервера в приложение.
+     */
+    fun installAndConnect(
+        host: String,
+        port: Int,
+        username: String,
+        auth: SshInstaller.SshConfig.Auth,
+        relayUrl: String,
+        adminToken: String,
+    ) {
+        if (installState.value?.done == false) return
+        viewModelScope.launch {
+            val lines = mutableListOf<String>()
+            fun log(message: String) {
+                lines.add(message)
+                installState.value = InstallState(lines.toList(), done = false, error = null)
+            }
+            try {
+                installState.value = InstallState(emptyList(), done = false, error = null)
+                val api = RelayApi(relayUrl)
+                log("[relay] creating client token")
+                val clientToken = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    api.createToken(adminToken, "phone", "client")
+                }
+                log("[relay] creating agent token")
+                val agentToken = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    api.createToken(adminToken, host, "agent")
+                }
+                SshInstaller { log("[ssh] $it") }.install(
+                    SshInstaller.SshConfig(host, port, username, auth),
+                    relayUrl,
+                    agentToken,
+                )
+                installState.value = InstallState(lines.toList(), done = true, error = null)
+                addServer(relayUrl, clientToken)
+            } catch (e: Exception) {
+                val message = when (e) {
+                    is net.schmizz.sshj.userauth.UserAuthException -> "SSH authentication failed (wrong login/password or key)"
+                    is java.io.IOException -> e.message ?: "io error"
+                    else -> e.toString()
+                }
+                lines.add("[error] $message")
+                installState.value = InstallState(lines.toList(), done = true, error = message)
+            }
+        }
+    }
 
     private var lastLogsContainer: String? = null
 

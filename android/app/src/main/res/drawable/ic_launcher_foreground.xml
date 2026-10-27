@@ -4,7 +4,7 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Watchdeck / Мостик: вахтенный фонарь (adaptive foreground) -->
+    <!-- WatchDeck: сигнальный огонь сервера (adaptive foreground) -->
     <!-- лучи света -->
     <path
         android:fillColor="#00000000"

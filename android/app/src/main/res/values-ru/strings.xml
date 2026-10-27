@@ -63,7 +63,7 @@
     <string name="tab_logs">Логи</string>
 
     <!-- onboarding -->
-    <string name="onboarding_tagline">Держите вахту над своим флотом: CPU, контейнеры, логи и алерты о падениях — прямо из кармана.</string>
+    <string name="onboarding_tagline">Мониторинг серверов и управление Docker-контейнерами: метрики, логи и уведомления о сбоях.</string>
     <string name="onboarding_relay_url">Адрес релея</string>
     <string name="onboarding_relay_url_hint">wss://relay.example.com</string>
     <string name="onboarding_token">Токен клиента</string>
@@ -73,6 +73,24 @@
     <string name="onboarding_connect">Подключиться</string>
     <string name="onboarding_hint_title">Токен выпускается на сервере релея:</string>
     <string name="onboarding_privacy">Токен хранится только на этом устройстве, зашифрован Android Keystore (StrongBox при наличии) и никогда его не покидает.</string>
+
+    <!-- ssh onboarding -->
+    <string name="ssh_section">Доступ к серверу (SSH)</string>
+    <string name="ssh_host">Сервер (хост или IP)</string>
+    <string name="ssh_port">Порт</string>
+    <string name="ssh_user">Пользователь</string>
+    <string name="auth_password">Пароль</string>
+    <string name="auth_key">SSH-ключ</string>
+    <string name="ssh_password">Пароль</string>
+    <string name="ssh_key">Приватный ключ (PEM)</string>
+    <string name="ssh_key_passphrase">Парольная фраза ключа (необязательно)</string>
+    <string name="relay_section">Релей</string>
+    <string name="relay_hint">Релей — небольшой сервис-координатор: к нему подключаются агенты и приложение, он передаёт данные и доставляет push-уведомления. Разверните его на этом же сервере или отдельном (docker compose или systemd — см. README проекта).</string>
+    <string name="relay_url_hint">wss://relay.example.com</string>
+    <string name="relay_admin_token">Админ-токен релея</string>
+    <string name="install_button">Установить агента и подключиться</string>
+    <string name="install_running">Установка агента…</string>
+    <string name="install_error_prefix">Ошибка установки</string>
 
     <!-- dashboard -->
     <string name="dashboard_loading">Загрузка метрик…</string>

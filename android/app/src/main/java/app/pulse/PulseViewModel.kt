@@ -152,9 +152,41 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Полный сброс: удаляет все серверы и возвращает приложение к онбордингу. */
+    /** Полный сброс: сносит установку на серверах по SSH, затем чистит локально. */
     fun resetAll() {
         watchdogSuppressed.set(true)
+        val toWipe = servers.value.filter {
+            !it.isDemo && it.sshAuthMode.isNotEmpty() && it.sshSecret.isNotEmpty()
+        }
+        if (toWipe.isEmpty()) {
+            hardResetLocal()
+            return
+        }
+        viewModelScope.launch {
+            val installer = SshInstaller { }
+            toWipe.forEach { srv ->
+                runCatching {
+                    kotlinx.coroutines.withTimeout(45_000) {
+                        installer.uninstallServer(
+                            SshInstaller.SshConfig(
+                                host = srv.label.ifEmpty { srv.relayUrl },
+                                port = srv.sshPort,
+                                username = srv.sshUser,
+                                auth = when (srv.sshAuthMode) {
+                                    "key" -> SshInstaller.SshConfig.Auth.Key(srv.sshSecret, srv.sshKeyPass.ifBlank { null })
+                                    else -> SshInstaller.SshConfig.Auth.Password(srv.sshSecret)
+                                },
+                            ),
+                            expectedFp = srv.sshHostKeyFp,
+                        )
+                    }
+                }
+            }
+            hardResetLocal()
+        }
+    }
+
+    private fun hardResetLocal() {
         repos.values.forEach { it.close() }
         repos.clear()
         serversStore.clear()

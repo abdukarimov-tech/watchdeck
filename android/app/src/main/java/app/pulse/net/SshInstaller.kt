@@ -307,6 +307,64 @@ class SshInstaller(private val onLog: (String) -> Unit) {
     }
 
     /**
+     * Полное удаление установки с сервера: агент, релей, юниты, пользователи,
+     * конфиги и данные. Все шаги best-effort — сброс данных не должен падать.
+     * Соединение проверяется по сохраненному отпечатку.
+     */
+    suspend fun uninstallServer(
+        cfg: SshConfig,
+        expectedFp: String,
+    ): Unit = withContext(Dispatchers.IO) {
+        val ssh = SSHClient().apply {
+            connectTimeout = 15_000
+            timeout = 30_000
+            addHostKeyVerifier(object : HostKeyVerifier {
+                override fun verify(hostname: String, port: Int, key: java.security.PublicKey): Boolean {
+                    if (expectedFp.isBlank()) return true
+                    val digest = MessageDigest.getInstance("SHA-256").digest(key.encoded)
+                    val fp = "SHA256:" + android.util.Base64.encodeToString(
+                        digest,
+                        android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING,
+                    )
+                    return fp == expectedFp
+                }
+
+                override fun findExistingAlgorithms(hostname: String, port: Int): List<String> = emptyList()
+            })
+        }
+        try {
+            ssh.connect(cfg.host, cfg.port)
+            when (val a = cfg.auth) {
+                is SshConfig.Auth.Password -> ssh.authPassword(cfg.username, a.password)
+                is SshConfig.Auth.Key -> {
+                    val key = ssh.loadKeys(a.privateKey, a.passphrase)
+                    ssh.authPublickey(cfg.username, key)
+                }
+            }
+            // каждый шаг с "|| true": неудача одного не мешает остальным
+            val steps = listOf(
+                "systemctl disable --now pulse-agent >/dev/null 2>&1 || true",
+                "rm -f /etc/systemd/system/pulse-agent.service; systemctl daemon-reload >/dev/null 2>&1 || true",
+                "rm -rf /etc/pulse-agent /usr/local/bin/pulse-agent /usr/local/bin/.pulse-agent.new",
+                "id pulse-agent >/dev/null 2>&1 && userdel pulse-agent || true",
+                "systemctl disable --now pulse-relay >/dev/null 2>&1 || true",
+                "rm -f /etc/systemd/system/pulse-relay.service; systemctl daemon-reload >/dev/null 2>&1 || true",
+                "rm -rf /etc/pulse-relay /var/lib/pulse-relay /usr/local/bin/pulse-relay /usr/local/bin/.pulse-relay.new",
+                "id pulse-relay >/dev/null 2>&1 && userdel pulse-relay || true",
+            )
+            for (cmd in steps) {
+                ssh.startSession().use { session ->
+                    val command = session.exec(cmd)
+                    command.inputStream.bufferedReader().readText()
+                    command.join()
+                }
+            }
+        } finally {
+            ssh.disconnect()
+        }
+    }
+
+    /**
      * Обновление бинарника агента (download + restart). Соединение проверяется
      * по сохраненному отпечатку.
      */

@@ -210,6 +210,15 @@ fun ServerDetailsScreen(
                                 }
                             },
                         )
+                        if (!isActive) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.details_make_active)) },
+                                onClick = {
+                                    menuOpen = false
+                                    vm.selectServer(server.id)
+                                },
+                            )
+                        }
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.details_reissue_tls)) },
                             enabled = !updatingAgent,

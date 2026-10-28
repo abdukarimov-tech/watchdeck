@@ -19,6 +19,10 @@
     <string name="details_remove">Удалить сервер</string>
     <string name="details_remove_text">Этот сервер и его токен будут удалены с устройства.</string>
     <string name="details_remove_confirm">Удалить</string>
+    <string name="details_menu">Настройки сервера</string>
+    <string name="details_update_ok">Агент обновлен</string>
+    <string name="details_update_fail">Не удалось обновить агента: %1$s</string>
+    <string name="details_no_ssh">Нет сохраненного SSH-доступа для этого сервера</string>
     <string name="details_uptime">аптайм %1$s</string>
     <plurals name="agents_count">
         <item quantity="one">%d агент</item>

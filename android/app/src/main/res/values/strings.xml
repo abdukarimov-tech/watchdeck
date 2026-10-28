@@ -19,6 +19,10 @@
     <string name="details_remove">Remove server</string>
     <string name="details_remove_text">This server and its token will be removed from this device.</string>
     <string name="details_remove_confirm">Remove</string>
+    <string name="details_menu">Server settings</string>
+    <string name="details_update_ok">Agent updated</string>
+    <string name="details_update_fail">Agent update failed: %1$s</string>
+    <string name="details_no_ssh">No saved SSH access for this server</string>
     <string name="details_uptime">uptime %1$s</string>
     <plurals name="agents_count">
         <item quantity="one">%d agent</item>

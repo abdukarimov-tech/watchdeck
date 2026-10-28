@@ -1,5 +1,6 @@
 package app.pulse.ui.screens
 
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,8 +18,11 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -39,6 +43,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -116,6 +121,10 @@ fun ServerDetailsScreen(
 
     var tab by remember { mutableStateOf(DetailsTab.Metrics) }
     var confirmRemove by remember { mutableStateOf(false) }
+    var menuOpen by remember { mutableStateOf(false) }
+    var updatingAgent by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     BackHandler { onBack() }
 
@@ -166,6 +175,47 @@ fun ServerDetailsScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { menuOpen = true }) {
+                        Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.details_menu))
+                    }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.details_update_agent)) },
+                            enabled = !updatingAgent,
+                            onClick = {
+                                menuOpen = false
+                                if (server.isDemo || server.sshAuthMode.isEmpty()) {
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.details_no_ssh),
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                } else {
+                                    updatingAgent = true
+                                    scope.launch {
+                                        vm.updateAgentRemote(server.id) { err ->
+                                            updatingAgent = false
+                                            Toast.makeText(
+                                                context,
+                                                if (err == null) context.getString(R.string.details_update_ok)
+                                                else context.getString(R.string.details_update_fail, err),
+                                                Toast.LENGTH_LONG,
+                                            ).show()
+                                        }
+                                    }
+                                }
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.details_remove), color = PulseError) },
+                            onClick = {
+                                menuOpen = false
+                                confirmRemove = true
+                            },
+                        )
                     }
                 },
             )

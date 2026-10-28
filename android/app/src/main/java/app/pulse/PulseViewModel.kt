@@ -139,6 +139,27 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun removeServer(id: String) {
+        val srv = servers.value.firstOrNull { it.id == id }
+        // снос установки на сервере (best-effort) — до локального удаления,
+        // пока SSH-доступ еще доступен
+        if (srv != null && !srv.isDemo && srv.sshAuthMode.isNotEmpty() && srv.sshSecret.isNotEmpty()) {
+            val installer = SshInstaller { }
+            val cfg = SshInstaller.SshConfig(
+                host = srv.label.ifEmpty { srv.relayUrl },
+                port = srv.sshPort,
+                username = srv.sshUser,
+                auth = when (srv.sshAuthMode) {
+                    "key" -> SshInstaller.SshConfig.Auth.Key(srv.sshSecret, srv.sshKeyPass.ifBlank { null })
+                    else -> SshInstaller.SshConfig.Auth.Password(srv.sshSecret)
+                },
+            )
+            val fp = srv.sshHostKeyFp
+            viewModelScope.launch {
+                runCatching {
+                    kotlinx.coroutines.withTimeout(45_000) { installer.uninstallServer(cfg, fp) }
+                }
+            }
+        }
         watchdogSuppressed.set(true)
         serversStore.remove(id)
         servers.value = serversStore.load()
@@ -149,6 +170,36 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
             displayRepo.value = repos[activeServerId.value]
             selectedAgent.value = null
             lastLogsContainer = null
+        }
+    }
+
+    /** Обновление бинарника агента на сервере по SSH. onResult(null) — успех. */
+    fun updateAgentRemote(id: String, onResult: (String?) -> Unit) {
+        val srv = servers.value.firstOrNull { it.id == id }
+        if (srv == null || srv.isDemo || srv.sshAuthMode.isEmpty() || srv.sshSecret.isEmpty()) {
+            onResult("no SSH access")
+            return
+        }
+        viewModelScope.launch {
+            val installer = SshInstaller { }
+            val err = runCatching {
+                kotlinx.coroutines.withTimeout(180_000) {
+                    installer.updateAgent(
+                        SshInstaller.SshConfig(
+                            host = srv.label.ifEmpty { srv.relayUrl },
+                            port = srv.sshPort,
+                            username = srv.sshUser,
+                            auth = when (srv.sshAuthMode) {
+                                "key" -> SshInstaller.SshConfig.Auth.Key(srv.sshSecret, srv.sshKeyPass.ifBlank { null })
+                                else -> SshInstaller.SshConfig.Auth.Password(srv.sshSecret)
+                            },
+                        ),
+                        expectedFp = srv.sshHostKeyFp,
+                    )
+                }
+                null
+            }.exceptionOrNull()?.message
+            onResult(err)
         }
     }
 

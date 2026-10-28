@@ -187,7 +187,10 @@ class SshInstaller(private val onLog: (String) -> Unit) {
                 adminToken = newHexToken()
                 onLog("installing relay…")
                 val relayDownload = "$RELEASE_BASE/pulse-relay-$arch"
-                sh("curl -fsSL '$relayDownload' -o /usr/local/bin/pulse-relay || wget -qO /usr/local/bin/pulse-relay '$relayDownload'")
+                // во временный файл + mv: запись поверх работающего бинарника
+                // дает ETXTBSY ("Text file busy"), а атомарный rename — нет
+                sh("curl -fsSL '$relayDownload' -o /usr/local/bin/.pulse-relay.new || wget -qO /usr/local/bin/.pulse-relay.new '$relayDownload'")
+                sh("mv -f /usr/local/bin/.pulse-relay.new /usr/local/bin/pulse-relay")
                 sh("chmod 0755 /usr/local/bin/pulse-relay")
                 sh("id pulse-relay >/dev/null 2>&1 || useradd -r -M -s /usr/sbin/nologin pulse-relay")
                 sh("mkdir -p /etc/pulse-relay /var/lib/pulse-relay")
@@ -250,7 +253,9 @@ class SshInstaller(private val onLog: (String) -> Unit) {
             // ---------- 4. агент ----------
             onLog("installing agent…")
             val binaryUrl = "$RELEASE_BASE/pulse-agent-$arch"
-            sh("curl -fsSL '$binaryUrl' -o /usr/local/bin/pulse-agent || wget -qO /usr/local/bin/pulse-agent '$binaryUrl'")
+            // временный файл + mv: агент может быть запущен с прошлой установки
+            sh("curl -fsSL '$binaryUrl' -o /usr/local/bin/.pulse-agent.new || wget -qO /usr/local/bin/.pulse-agent.new '$binaryUrl'")
+            sh("mv -f /usr/local/bin/.pulse-agent.new /usr/local/bin/pulse-agent")
             sh("chmod 0755 /usr/local/bin/pulse-agent")
             sh("id pulse-agent >/dev/null 2>&1 || useradd -r -M -s /usr/sbin/nologin pulse-agent")
             // docker-группа нужна агенту для статистики контейнеров; без Docker
@@ -364,7 +369,9 @@ class SshInstaller(private val onLog: (String) -> Unit) {
             }
             onLog("downloading agent ($arch)…")
             val binaryUrl = "$RELEASE_BASE/pulse-agent-$arch"
-            sh("curl -fsSL '$binaryUrl' -o /usr/local/bin/pulse-agent || wget -qO /usr/local/bin/pulse-agent '$binaryUrl'")
+            // временный файл + mv: агент может быть запущен с прошлой установки
+            sh("curl -fsSL '$binaryUrl' -o /usr/local/bin/.pulse-agent.new || wget -qO /usr/local/bin/.pulse-agent.new '$binaryUrl'")
+            sh("mv -f /usr/local/bin/.pulse-agent.new /usr/local/bin/pulse-agent")
             sh("chmod 0755 /usr/local/bin/pulse-agent")
             sh("systemctl restart pulse-agent")
             val active = sh("systemctl is-active pulse-agent").trim()

@@ -115,6 +115,8 @@
     <string name="notif_channel_id">server_alerts</string>
     <string name="details_tab_terminal">Терминал</string>
     <string name="details_update_agent">Обновить агента</string>
+    <string name="details_reissue_tls">Перевыпустить сертификаты</string>
+    <string name="details_reissue_ok">Сертификаты перевыпущены, соединение восстановлено</string>
     <string name="agent_updated">Агент обновлён</string>
     <string name="agent_updating">Обновление агента…</string>
     <string name="agent_version_fmt">агент v%1$s</string>

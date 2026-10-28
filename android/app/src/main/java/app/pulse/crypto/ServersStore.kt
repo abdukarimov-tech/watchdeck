@@ -78,6 +78,11 @@ class ServersStore(context: Context) {
         if (activeId() == id) prefs.edit().remove(KEY_ACTIVE).apply()
     }
 
+    /** Обновляет конфиг сервера (по id). */
+    fun update(config: ServerConfig) {
+        save(load().map { if (it.id == config.id) config else it })
+    }
+
     /** Полная очистка (сброс данных приложения). */
     fun clear() {
         prefs.edit().clear().apply()

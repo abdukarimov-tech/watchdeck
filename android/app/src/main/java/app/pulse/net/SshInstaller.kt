@@ -366,6 +366,92 @@ class SshInstaller(private val onLog: (String) -> Unit) {
         }
     }
 
+    /** Результат перевыпуска TLS: новые лист (пиннинг в приложении) и CA. */
+    data class TlsReissue(val leafPem: String, val caPem: String, val relayActive: Boolean)
+
+    /**
+     * Перевыпуск сертификатов релея на сервере: новый мини-CA + лист (SAN по
+     * [sanIp]), перезапуск релея, обновление CA-файла агента и его перезапуск.
+     * Соединение проверяется по сохраненному отпечатку.
+     */
+    suspend fun reissueTls(
+        cfg: SshConfig,
+        expectedFp: String,
+        sanIp: String,
+    ): TlsReissue = withContext(Dispatchers.IO) {
+        val ssh = SSHClient().apply {
+            connectTimeout = 15_000
+            timeout = 30_000
+            addHostKeyVerifier(object : HostKeyVerifier {
+                override fun verify(hostname: String, port: Int, key: java.security.PublicKey): Boolean {
+                    if (expectedFp.isBlank()) return true
+                    val digest = MessageDigest.getInstance("SHA-256").digest(key.encoded)
+                    val fp = "SHA256:" + android.util.Base64.encodeToString(
+                        digest,
+                        android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING,
+                    )
+                    return fp == expectedFp
+                }
+
+                override fun findExistingAlgorithms(hostname: String, port: Int): List<String> = emptyList()
+            })
+        }
+        try {
+            ssh.connect(cfg.host, cfg.port)
+            when (val a = cfg.auth) {
+                is SshConfig.Auth.Password -> ssh.authPassword(cfg.username, a.password)
+                is SshConfig.Auth.Key -> {
+                    val key = ssh.loadKeys(a.privateKey, a.passphrase)
+                    ssh.authPublickey(cfg.username, key)
+                }
+            }
+            fun exec(cmd: String): String =
+                ssh.startSession().use { session ->
+                    val command = session.exec(cmd)
+                    val out = command.inputStream.bufferedReader().readText()
+                    val err = command.errorStream.bufferedReader().readText()
+                    command.join()
+                    val code = command.exitStatus ?: -1
+                    if (code != 0) throw IOException("command failed ($code): $cmd\n$err")
+                    out
+                }
+
+            val r = exec(
+                "cd /etc/pulse-relay && " +
+                    "openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes " +
+                    "-keyout ca.key -out ca.crt -days 3650 -subj '/CN=pulse-ca' " +
+                    "-addext basicConstraints=critical,CA:TRUE -addext keyUsage=critical,keyCertSign " +
+                    ">/dev/null 2>&1 && " +
+                    "openssl req -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes " +
+                    "-keyout tls.key -out tls.csr -subj '/CN=pulse-relay' >/dev/null 2>&1 && " +
+                    "echo 'subjectAltName=IP:$sanIp' > san.ext && " +
+                    "openssl x509 -req -in tls.csr -CA ca.crt -CAkey ca.key -CAcreateserial " +
+                    "-days 3650 -extfile san.ext -out tls.crt >/dev/null 2>&1 && " +
+                    "rm -f tls.csr san.ext && chmod 600 ca.key tls.key && echo ok || echo fail",
+            ).trim()
+            if (r != "ok") throw IOException("openssl failed on server (есть ли openssl?)")
+
+            exec("systemctl restart pulse-relay")
+            exec("sleep 1")
+            val relayActive = exec("systemctl is-active pulse-relay || true").trim() == "active"
+
+            // агент должен доверять новому CA
+            exec(
+                "test -d /etc/pulse-agent && cp /etc/pulse-relay/ca.crt /etc/pulse-agent/relay-ca.crt " +
+                    "&& chown pulse-agent:pulse-agent /etc/pulse-agent/relay-ca.crt " +
+                    "&& systemctl restart pulse-agent || true",
+            )
+
+            TlsReissue(
+                leafPem = exec("cat /etc/pulse-relay/tls.crt").trim(),
+                caPem = exec("cat /etc/pulse-relay/ca.crt").trim(),
+                relayActive = relayActive,
+            )
+        } finally {
+            ssh.disconnect()
+        }
+    }
+
     /**
      * Обновление бинарника агента (download + restart). Соединение проверяется
      * по сохраненному отпечатку.

@@ -203,6 +203,66 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Перевыпуск TLS-сертификатов релея: новый мини-CA + лист на сервере,
+     * обновление CA-файла агента и пина в приложении. onResult(null) — успех.
+     */
+    fun reissueCertsRemote(id: String, onResult: (String?) -> Unit) {
+        val srv = servers.value.firstOrNull { it.id == id }
+        if (srv == null || srv.isDemo || srv.sshAuthMode.isEmpty() || srv.sshSecret.isEmpty()) {
+            onResult("no SSH access")
+            return
+        }
+        // SAN берется из сохраненного relayUrl (wss://IP:port)
+        val sanIp = srv.relayUrl
+            .removePrefix("wss://").removePrefix("ws://")
+            .substringBefore(':')
+            .substringBefore('/')
+        if (sanIp.isEmpty()) {
+            onResult("cannot determine relay address")
+            return
+        }
+        viewModelScope.launch {
+            val installer = SshInstaller { }
+            val err = runCatching {
+                kotlinx.coroutines.withTimeout(120_000) {
+                    installer.reissueTls(
+                        SshInstaller.SshConfig(
+                            host = srv.label.ifEmpty { srv.relayUrl },
+                            port = srv.sshPort,
+                            username = srv.sshUser,
+                            auth = when (srv.sshAuthMode) {
+                                "key" -> SshInstaller.SshConfig.Auth.Key(srv.sshSecret, srv.sshKeyPass.ifBlank { null })
+                                else -> SshInstaller.SshConfig.Auth.Password(srv.sshSecret)
+                            },
+                        ),
+                        expectedFp = srv.sshHostKeyFp,
+                        sanIp = sanIp,
+                    )
+                }
+            }.fold(
+                onSuccess = { result ->
+                    if (!result.relayActive) {
+                        "relay service is not active after re-issue"
+                    } else if (result.leafPem.isEmpty()) {
+                        "empty certificate returned"
+                    } else {
+                        // новый пин + переподключение с новым сертификатом
+                        val updated = srv.copy(relayCertPem = result.leafPem)
+                        serversStore.update(updated)
+                        servers.value = serversStore.load()
+                        repos.remove(id)?.close()
+                        dropServerData(id)
+                        syncRepos()
+                        null
+                    }
+                },
+                onFailure = { it.message ?: "re-issue failed" },
+            )
+            onResult(err)
+        }
+    }
+
     /** Полный сброс: сносит установку на серверах по SSH, затем чистит локально. */
     fun resetAll() {
         watchdogSuppressed.set(true)

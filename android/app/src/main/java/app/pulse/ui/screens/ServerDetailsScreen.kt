@@ -211,6 +211,33 @@ fun ServerDetailsScreen(
                             },
                         )
                         DropdownMenuItem(
+                            text = { Text(stringResource(R.string.details_reissue_tls)) },
+                            enabled = !updatingAgent,
+                            onClick = {
+                                menuOpen = false
+                                if (server.isDemo || server.sshAuthMode.isEmpty()) {
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.details_no_ssh),
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                } else {
+                                    updatingAgent = true
+                                    scope.launch {
+                                        vm.reissueCertsRemote(server.id) { err ->
+                                            updatingAgent = false
+                                            Toast.makeText(
+                                                context,
+                                                if (err == null) context.getString(R.string.details_reissue_ok)
+                                                else context.getString(R.string.details_update_fail, err),
+                                                Toast.LENGTH_LONG,
+                                            ).show()
+                                        }
+                                    }
+                                }
+                            },
+                        )
+                        DropdownMenuItem(
                             text = { Text(stringResource(R.string.details_remove), color = PulseError) },
                             onClick = {
                                 menuOpen = false

@@ -12,8 +12,10 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::HeaderValue;
-use tokio_tungstenite::{connect_async_tls_with_config, tungstenite::protocol::Message as WsMessage};
 use tokio_tungstenite::Connector;
+use tokio_tungstenite::{
+    connect_async_tls_with_config, tungstenite::protocol::Message as WsMessage,
+};
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 

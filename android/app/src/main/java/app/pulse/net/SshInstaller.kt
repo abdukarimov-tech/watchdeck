@@ -263,7 +263,9 @@ class SshInstaller(private val onLog: (String) -> Unit) {
             val hasDocker = sh("getent group docker >/dev/null 2>&1 && echo yes || echo no").trim() == "yes"
             if (hasDocker) sh("usermod -aG docker pulse-agent")
             sh("mkdir -p /etc/pulse-agent")
-            var agentConfig = "relay_url = \"$relayUrl\"\ntoken = \"$agentToken\"\n"
+            // у relayUrl пути нет (приложение использует его как базу для
+            // /ws/client); агент подключается к /ws/agent
+            var agentConfig = "relay_url = \"$relayUrl/ws/agent\"\ntoken = \"$agentToken\"\n"
             if (caPem.isNotEmpty()) {
                 // агент доверяет самоподписанному CA релея через CA-файл
                 writeFile(::sh, "/etc/pulse-agent/relay-ca.crt", "$caPem\n")

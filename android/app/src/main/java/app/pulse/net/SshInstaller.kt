@@ -134,7 +134,32 @@ class SshInstaller(private val onLog: (String) -> Unit) {
             ).trim()
             val adminToken: String
             var certPem = ""
+            var caPem = ""
             var relayUrl: String
+
+            // выпуск мини-CA + серверного листа: webpki (rustls) отвергает
+            // самоподписанный лист с CA:TRUE ("CaUsedAsEndEntity"), поэтому агенту
+            // нужен настоящий CA-сертификат, которым подписан лист релея
+            fun issueTls(): Boolean {
+                val r = sh(
+                    "cd /etc/pulse-relay && " +
+                        "openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes " +
+                        "-keyout ca.key -out ca.crt -days 3650 -subj '/CN=pulse-ca' " +
+                        "-addext basicConstraints=critical,CA:TRUE -addext keyUsage=critical,keyCertSign " +
+                        ">/dev/null 2>&1 && " +
+                        "openssl req -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes " +
+                        "-keyout tls.key -out tls.csr -subj '/CN=pulse-relay' >/dev/null 2>&1 && " +
+                        "echo 'subjectAltName=IP:$publicIp' > san.ext && " +
+                        "openssl x509 -req -in tls.csr -CA ca.crt -CAkey ca.key -CAcreateserial " +
+                        "-days 3650 -extfile san.ext -out tls.crt >/dev/null 2>&1 && " +
+                        "rm -f tls.csr san.ext && chmod 600 ca.key tls.key && echo ok || echo fail",
+                ).trim()
+                if (r != "ok") return false
+                certPem = sh("cat /etc/pulse-relay/tls.crt").trim()
+                caPem = sh("cat /etc/pulse-relay/ca.crt").trim()
+                return true
+            }
+
             if (health.contains("ok")) {
                 onLog("relay already running — reusing")
                 adminToken = sh(
@@ -142,7 +167,22 @@ class SshInstaller(private val onLog: (String) -> Unit) {
                 ).trim().ifEmpty { throw IOException("relay is running but admin token not found") }
                 relayUrl = "ws://$publicIp:8080"
                 certPem = sh("cat /etc/pulse-relay/tls.crt 2>/dev/null || true").trim()
-                if (certPem.isNotEmpty()) relayUrl = "wss://$publicIp:8443"
+                if (certPem.isNotEmpty()) {
+                    relayUrl = "wss://$publicIp:8443"
+                    val hasCa = sh("test -f /etc/pulse-relay/ca.crt && echo yes || echo no").trim() == "yes"
+                    if (!hasCa) {
+                        // старая схема (лист с CA:TRUE) — агент её не примет; пере-выпуск
+                        onLog("upgrading relay TLS to mini-CA scheme…")
+                        val hasOpenssl = sh("command -v openssl >/dev/null && echo yes || echo no").trim() == "yes"
+                        if (hasOpenssl && issueTls()) {
+                            sh("systemctl restart pulse-relay")
+                            sh("sleep 1")
+                            onLog("relay TLS re-issued (CA + leaf)")
+                        }
+                    } else {
+                        caPem = sh("cat /etc/pulse-relay/ca.crt").trim()
+                    }
+                }
             } else {
                 adminToken = newHexToken()
                 onLog("installing relay…")
@@ -152,20 +192,14 @@ class SshInstaller(private val onLog: (String) -> Unit) {
                 sh("id pulse-relay >/dev/null 2>&1 || useradd -r -M -s /usr/sbin/nologin pulse-relay")
                 sh("mkdir -p /etc/pulse-relay /var/lib/pulse-relay")
 
-                // самоподписанный TLS-сертификат, если на сервере есть openssl
+                // TLS-сертификаты (мини-CA + лист), если на сервере есть openssl
                 val hasOpenssl = sh("command -v openssl >/dev/null && echo yes || echo no").trim() == "yes"
                 var tlsEnv = ""
                 if (hasOpenssl) {
-                    onLog("issuing self-signed TLS certificate…")
-                    val tls = sh(
-                        "openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes " +
-                            "-keyout /etc/pulse-relay/tls.key -out /etc/pulse-relay/tls.crt -days 3650 " +
-                            "-subj '/CN=pulse' -addext 'subjectAltName=IP:$publicIp' >/dev/null 2>&1 && echo ok || echo fail",
-                    ).trim()
-                    if (tls == "ok") {
-                        certPem = sh("cat /etc/pulse-relay/tls.crt").trim()
+                    onLog("issuing TLS certificates (CA + leaf)…")
+                    if (issueTls()) {
                         tlsEnv = "PULSE_TLS_CERT=/etc/pulse-relay/tls.crt\nPULSE_TLS_KEY=/etc/pulse-relay/tls.key\n"
-                        onLog("TLS enabled (self-signed, pinned in app)")
+                        onLog("TLS enabled (self-signed CA + leaf, pinned in app)")
                     }
                 }
 
@@ -225,9 +259,9 @@ class SshInstaller(private val onLog: (String) -> Unit) {
             if (hasDocker) sh("usermod -aG docker pulse-agent")
             sh("mkdir -p /etc/pulse-agent")
             var agentConfig = "relay_url = \"$relayUrl\"\ntoken = \"$agentToken\"\n"
-            if (certPem.isNotEmpty()) {
-                // агент доверяет самоподписанному сертификату релея через CA-файл
-                writeFile(::sh, "/etc/pulse-agent/relay-ca.crt", "$certPem\n")
+            if (caPem.isNotEmpty()) {
+                // агент доверяет самоподписанному CA релея через CA-файл
+                writeFile(::sh, "/etc/pulse-agent/relay-ca.crt", "$caPem\n")
                 agentConfig += "ca_cert = \"/etc/pulse-agent/relay-ca.crt\"\n"
             }
             writeFile(::sh, "/etc/pulse-agent/config.toml", agentConfig)

@@ -7,8 +7,9 @@ import net.schmizz.sshj.SSHClient
 import net.schmizz.sshj.transport.verification.HostKeyVerifier
 
 /**
- * Интерактивный SSH-терминал (PTY shell). Подключается напрямую к серверу
- * по сохраненному SSH-доступу, независимо от релея.
+ * SSH-терминал: one-shot команды поверх одного SSH-соединения (session.exec).
+ * Подключается напрямую к серверу по сохраненному SSH-доступу, независимо
+ * от релея. Каждая команда — свой session-канал, как в [SshInstaller].
  */
 class SshTerminal(
     private val expectedFp: String = "",
@@ -17,8 +18,8 @@ class SshTerminal(
 ) {
 
     private var client: SSHClient? = null
-    private var shell: net.schmizz.sshj.connection.channel.direct.Session.Shell? = null
-    private val reading = AtomicBoolean(false)
+    private var prompt = ""
+    private val execInFlight = AtomicBoolean(false)
 
     val isConnected: Boolean get() = client != null && client!!.isConnected
 
@@ -26,7 +27,7 @@ class SshTerminal(
         if (isConnected) return@withContext
         val ssh = SSHClient().apply {
             connectTimeout = 15_000
-            timeout = 0 // интерактивная сессия
+            timeout = 0
             // пиннинг: сверяем отпечаток, сохраненный при установке агента
             addHostKeyVerifier(object : HostKeyVerifier {
                 override fun verify(hostname: String, port: Int, key: java.security.PublicKey): Boolean {
@@ -54,41 +55,39 @@ class SshTerminal(
                 ssh.authPublickey(cfg.username, key)
             }
         }
-        val session = ssh.startSession()
-        session.allocatePTY("vt100", 120, 32, 0, 0, emptyMap<net.schmizz.sshj.connection.channel.direct.PTYMode, Int>())
-        val sh = session.startShell()
-
         client = ssh
-        shell = sh
-        reading.set(true)
+        prompt = "${cfg.username}@${cfg.host}"
+        onOutput("connected: $prompt\n")
+    }
 
+    fun send(line: String) {
+        val ssh = client ?: return
+        if (!execInFlight.compareAndSet(false, true)) {
+            onLog("предыдущая команда ещё выполняется…")
+            return
+        }
         Thread {
-            val buf = ByteArray(4096)
             try {
-                while (reading.get()) {
-                    val n = sh.inputStream.read(buf)
-                    if (n <= 0) break
-                    onOutput(String(buf, 0, n))
+                onOutput("\n$prompt:~# $line\n")
+                ssh.startSession().use { session ->
+                    val cmd = session.exec(line)
+                    val out = cmd.inputStream.bufferedReader().readText()
+                    val err = cmd.errorStream.bufferedReader().readText()
+                    cmd.join()
+                    onOutput(out)
+                    if (err.isNotBlank()) onOutput(err.trimEnd() + "\n")
+                    onOutput("exit=${cmd.exitStatus ?: -1}\n")
                 }
-            } catch (_: Exception) {
-                // соединение закрыто
+            } catch (e: Exception) {
+                onLog("error: ${e.message ?: e.javaClass.simpleName}")
+            } finally {
+                execInFlight.set(false)
             }
         }.start()
     }
 
-    fun send(line: String) {
-        val sh = shell ?: return
-        runCatching {
-            sh.outputStream.write((line + "\r\n").toByteArray())
-            sh.outputStream.flush()
-        }
-    }
-
     fun close() {
-        reading.set(false)
-        runCatching { shell?.close() }
         runCatching { client?.disconnect() }
         client = null
-        shell = null
     }
 }

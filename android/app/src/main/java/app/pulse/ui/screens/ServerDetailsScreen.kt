@@ -58,6 +58,7 @@ import app.pulse.net.SshInstaller
 import app.pulse.net.SshTerminal
 import app.pulse.R
 import app.pulse.data.MetricsUi
+import kotlinx.coroutines.launch
 import app.pulse.data.formatBytes
 import app.pulse.data.formatUptime
 import app.pulse.net.ConnState

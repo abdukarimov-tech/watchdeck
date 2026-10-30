@@ -281,8 +281,12 @@ class PulseConnection(
             pendingActions.remove(id)
             return Result.failure(PulseError.Offline)
         }
-        return withTimeoutOrNull(10_000) { deferred.await() }
-            ?: Result.failure(PulseError.Timeout)
+        return try {
+            withTimeoutOrNull(10_000) { deferred.await() }
+                ?: Result.failure(PulseError.Timeout)
+        } finally {
+            pendingActions.remove(id)
+        }
     }
 
     fun requestLogs(agentId: String, containerId: String) {

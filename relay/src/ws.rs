@@ -14,7 +14,7 @@ use tracing::{info, warn};
 
 use crate::db::Alert;
 use crate::pb::msg::Payload;
-use crate::pb::{EventAlert, HelloAck, Msg};
+use crate::pb::{EventAlert, HelloAck, Msg, Pong};
 use crate::state::AppState;
 
 /// Если от пира нет ни одного сообщения за это время — считаем соединение
@@ -74,7 +74,7 @@ async fn agent_socket(st: AppState, agent_id: String, socket: WebSocket) {
         .await
         .is_err()
     {
-        st.unregister_agent(&agent_id);
+        st.unregister_agent(&agent_id, &tx);
         return;
     }
 
@@ -103,12 +103,14 @@ async fn agent_socket(st: AppState, agent_id: String, socket: WebSocket) {
         };
         match msg.payload {
             Some(Payload::Hello(hello)) => {
-                st.register_agent(
-                    agent_id.clone(),
+                if !st.update_agent(
+                    &agent_id,
+                    &tx,
                     hello.hostname.clone(),
                     hello.agent_version.clone(),
-                    tx.clone(),
-                );
+                ) {
+                    break;
+                }
                 info!(%agent_id, hostname = %hello.hostname, "agent hello");
                 notify_event(
                     &st,
@@ -118,9 +120,12 @@ async fn agent_socket(st: AppState, agent_id: String, socket: WebSocket) {
                     None,
                 );
             }
-            Some(Payload::Ping(_)) => {
-                // ответ не нужен: tungstenite сам отвечает на протокольные ping,
-                // а аппаратный Ping агента служит доказательством живости
+            Some(Payload::Ping(ping)) => {
+                let _ = tx.send(encode_msg(&Msg {
+                    id: msg.id,
+                    target: String::new(),
+                    payload: Some(Payload::Pong(Pong { seq: ping.seq })),
+                }));
             }
             Some(Payload::EventAlert(mut ev)) => {
                 let kind_name = crate::pb::EventKind::try_from(ev.kind)
@@ -176,8 +181,11 @@ async fn agent_socket(st: AppState, agent_id: String, socket: WebSocket) {
         }
     }
 
-    st.unregister_agent(&agent_id);
+    let removed = st.unregister_agent(&agent_id, &tx);
     writer.abort();
+    if !removed {
+        return;
+    }
 
     // watchdog: агент отвалился (упал сервер) — алерт клиентам + push
     notify_event(

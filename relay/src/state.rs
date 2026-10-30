@@ -27,13 +27,15 @@ pub struct AppState {
     inner: Arc<Inner>,
 }
 
+struct AgentConn {
+    tx: OutTx,
+    hostname: String,
+    version: String,
+}
+
 struct Inner {
     /// agent_id -> исходящий канал агента (в агент отправляем байты Msg)
-    agents: DashMap<String, OutTx>,
-    /// agent_id -> hostname (из Hello)
-    agent_hosts: DashMap<String, String>,
-    /// agent_id -> версия агента (из Hello)
-    agent_versions: DashMap<String, String>,
+    agents: DashMap<String, AgentConn>,
     /// client conn id -> подписка + канал клиенту
     clients: DashMap<u64, ClientConn>,
     next_client_id: std::sync::atomic::AtomicU64,
@@ -47,9 +49,7 @@ impl AppState {
             fcm,
             inner: Arc::new(Inner {
                 agents: DashMap::new(),
-                agent_hosts: DashMap::new(),
                 clients: DashMap::new(),
-                agent_versions: DashMap::new(),
                 next_client_id: std::sync::atomic::AtomicU64::new(0),
             }),
         }
@@ -57,18 +57,39 @@ impl AppState {
 
     pub fn register_agent(&self, agent_id: String, hostname: String, version: String, tx: OutTx) {
         tracing::info!(%agent_id, %hostname, %version, "agent connected");
-        self.inner.agents.insert(agent_id.clone(), tx);
-        self.inner.agent_hosts.insert(agent_id.clone(), hostname);
-        self.inner.agent_versions.insert(agent_id, version);
+        self.inner.agents.insert(
+            agent_id,
+            AgentConn {
+                tx,
+                hostname,
+                version,
+            },
+        );
     }
 
-    pub fn unregister_agent(&self, agent_id: &str) {
-        tracing::info!(%agent_id, "agent disconnected");
-        // при переподключении новое соединение вставляется после удаления —
-        // в худшем случае мгновение считается офлайн
-        self.inner.agents.remove(agent_id);
-        self.inner.agent_hosts.remove(agent_id);
-        self.inner.agent_versions.remove(agent_id);
+    /// Hello обновляет только ту сессию, которая сейчас зарегистрирована.
+    pub fn update_agent(
+        &self,
+        agent_id: &str,
+        tx: &OutTx,
+        hostname: String,
+        version: String,
+    ) -> bool {
+        if let Some(mut conn) = self.inner.agents.get_mut(agent_id) {
+            if conn.tx.same_channel(tx) {
+                conn.hostname = hostname;
+                conn.version = version;
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn unregister_agent(&self, agent_id: &str, tx: &OutTx) -> bool {
+        self.inner
+            .agents
+            .remove_if(agent_id, |_, conn| conn.tx.same_channel(tx))
+            .is_some()
     }
 
     pub fn register_client(&self, filter: Option<String>, tx: OutTx) -> u64 {
@@ -116,7 +137,7 @@ impl AppState {
             }
         };
         match self.inner.agents.get(&resolved) {
-            Some(tx) => tx.send(bytes.to_vec()).map_err(|_| "agent gone"),
+            Some(conn) => conn.tx.send(bytes.to_vec()).map_err(|_| "agent gone"),
             None => Err("agent not connected"),
         }
     }
@@ -125,16 +146,7 @@ impl AppState {
         self.inner
             .agents
             .iter()
-            .filter_map(|e| {
-                let host = self.inner.agent_hosts.get(e.key())?.clone();
-                let version = self
-                    .inner
-                    .agent_versions
-                    .get(e.key())
-                    .map(|v| v.clone())
-                    .unwrap_or_default();
-                Some((e.key().clone(), host, version))
-            })
+            .map(|e| (e.key().clone(), e.hostname.clone(), e.version.clone()))
             .collect()
     }
 }
@@ -159,6 +171,25 @@ mod tests {
                 containers: vec![Container::default()],
             })),
         }
+    }
+
+    #[test]
+    fn stale_session_cannot_remove_or_overwrite_replacement() {
+        let st = state();
+        let (old, _old_rx) = mpsc::unbounded_channel();
+        let (new, mut new_rx) = mpsc::unbounded_channel();
+        st.register_agent("a".into(), "old".into(), "1".into(), old.clone());
+        st.register_agent("a".into(), "new".into(), "2".into(), new.clone());
+        assert!(!st.update_agent("a", &old, "stale".into(), "0".into()));
+        assert!(!st.unregister_agent("a", &old));
+        assert_eq!(
+            st.connected_agents(),
+            vec![("a".into(), "new".into(), "2".into())]
+        );
+        st.forward_to_agent(Some("a"), b"command").unwrap();
+        assert_eq!(new_rx.try_recv().unwrap(), b"command");
+        assert!(st.unregister_agent("a", &new));
+        assert!(st.connected_agents().is_empty());
     }
 
     #[test]

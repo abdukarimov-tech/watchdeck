@@ -128,6 +128,18 @@ public struct LogLineUi: Sendable, Equatable, Identifiable {
     }
 }
 
+private enum LogLevelPatterns {
+    static let error = try! NSRegularExpression(pattern: "\\b(ERROR|FATAL|PANIC)\\b", options: .caseInsensitive)
+    static let warn = try! NSRegularExpression(pattern: "\\bWARN(ING)?\\b", options: .caseInsensitive)
+}
+public extension LogLineUi {
+    var level: String {
+        if LogLevelPatterns.error.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil { return "ERROR" }
+        if LogLevelPatterns.warn.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil { return "WARN" }
+        return isStderr ? "ERROR" : "INFO"
+    }
+}
+
 public struct AlertUi: Sendable, Equatable, Identifiable {
     public var id = UUID()
     public var kind: EventKind

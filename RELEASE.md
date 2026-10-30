@@ -115,8 +115,11 @@ Unit-тесты: `./gradlew testDebugUnitTest` (форматирование, м
 `release.yml` срабатывает на тег `v*`:
 
 ```bash
-git tag v1.0.0 && git push origin v1.0.0
+git tag v1.1.0 && git push origin v1.1.0
 ```
+
+Workflow создаёт черновик релиза. После успешных проверок CI и сверки SHA-256
+опубликуйте его: `gh release edit v1.1.0 --draft=false --latest`.
 
 Собирает и прикладывает к релизу:
 - `pulse-agent-x86_64` (+ sha256) — статический musl-бинарник

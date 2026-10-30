@@ -13,11 +13,38 @@ final class CodecTests: XCTestCase {
         }
     }
 
-    /// Ping{seq:1} — поле 110, wire varint: tag 880 → F0 06, затем 01.
+    /// Msg field 110 contains the nested Ping message, matching pulse.proto.
     func testPingWireVector() {
         let msg = PulseMsg(payload: .ping(seq: 1))
         let data = msg.encode()
-        XCTAssertEqual([UInt8](data), [0xF0, 0x06, 0x01])
+        XCTAssertEqual([UInt8](data), [0xF2, 0x06, 0x02, 0x08, 0x01])
+    }
+
+    func testMonitoringFieldsAndCancellationRoundtrip() throws {
+        var container = Container()
+        container.id = "web"; container.health = "unhealthy"
+        container.composeProject = "production"; container.composeService = "api"
+        let msg = PulseMsg(payload: .containerList(ContainerList(containers: [container])))
+        XCTAssertEqual(try PulseMsg.decode(msg.encode()), msg)
+        var request = LogsRequest(containerId: "web", tailLines: 200, follow: true, streamId: "unique")
+        request.cancel = true
+        let cancellation = PulseMsg(target: "agent", payload: .logsRequest(request))
+        XCTAssertEqual(try PulseMsg.decode(cancellation.encode()), cancellation)
+        XCTAssertEqual(try PulseMsg.decode(Data([0xFA, 0x06, 0x02, 0x08, 0x07])).payload, .pong(seq: 7))
+        XCTAssertEqual(EventKind.from(wireName: "RESOURCE_HIGH"), .resourceHigh)
+    }
+
+    func testStderrWarningsAreNotErrors() {
+        XCTAssertEqual(LogLineUi(tsUnix: 0, isStderr: true, text: "WARN slow query").level, "WARN")
+        XCTAssertEqual(LogLineUi(tsUnix: 0, isStderr: false, text: "[fatal] process stopped").level, "ERROR")
+        XCTAssertEqual(LogLineUi(tsUnix: 0, isStderr: false, text: "error_count=0").level, "INFO")
+    }
+    func testAlertPolicyMatchesRelayJSON() throws {
+        let json = Data(#"{"enabled":true,"cpu_percent":90,"memory_percent":85,"disk_percent":90,"sustain_seconds":300,"restart_count":3,"maintenance_until":0}"#.utf8)
+        let policy = try JSONDecoder().decode(AlertPolicy.self, from: json)
+        XCTAssertEqual(policy.sustain_seconds, 300)
+        XCTAssertEqual(policy.memory_percent, 85)
+        XCTAssertEqual(try JSONDecoder().decode(AlertPolicy.self, from: JSONEncoder().encode(policy)), policy)
     }
 
     func testEnvelopeRoundtrip() throws {

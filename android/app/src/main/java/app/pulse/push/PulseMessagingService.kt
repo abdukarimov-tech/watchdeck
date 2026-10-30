@@ -21,7 +21,7 @@ import app.pulse.R
 class PulseMessagingService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
-        // TODO: отправить токен на релей: POST /api/devices {fcm_token, agent_id}
+        PushRegistrationJob.schedule(this, token)
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
@@ -34,6 +34,10 @@ class PulseMessagingService : FirebaseMessagingService() {
         val title = when (kind) {
             "CONTAINER_DIED" -> getString(R.string.alert_container_died, container)
             "OOM" -> getString(R.string.alert_oom, container)
+            "RESOURCE_HIGH" -> container
+            "RESOURCE_RECOVERED" -> getString(R.string.incidents_resolved)
+            "CONTAINER_UNHEALTHY" -> getString(R.string.incident_unhealthy)
+            "RESTART_LOOP" -> getString(R.string.incident_restart_loop)
             "SERVER_OFFLINE" -> getString(R.string.alert_server_offline, agentId.ifEmpty { container })
             "SERVER_ONLINE" -> getString(R.string.alert_server_online, agentId.ifEmpty { container })
             else -> getString(R.string.alert_generic, agentId.ifEmpty { container })
@@ -43,6 +47,7 @@ class PulseMessagingService : FirebaseMessagingService() {
         } else {
             getString(R.string.alert_body_suffix, detail, agentId)
         }
+        app.pulse.widget.WidgetSnapshots.recordIncident(this, agentId, body)
         showNotification(title, body)
     }
 

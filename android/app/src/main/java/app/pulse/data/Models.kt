@@ -22,9 +22,21 @@ data class ContainerUi(
     val cpuPercent: Double = 0.0,
     val memUsedBytes: Long = 0,
     val memLimitBytes: Long = 0,
+    val health: String = "none",
+    val composeProject: String = "",
+    val composeService: String = "",
 )
 
 data class LogLineUi(val tsUnix: Long, val isStderr: Boolean, val text: String)
+
+private val logErrorPattern = Regex("\\b(ERROR|FATAL|PANIC)\\b", RegexOption.IGNORE_CASE)
+private val logWarnPattern = Regex("\\bWARN(ING)?\\b", RegexOption.IGNORE_CASE)
+fun LogLineUi.level(): String = when {
+    logErrorPattern.containsMatchIn(text) -> "ERROR"
+    logWarnPattern.containsMatchIn(text) -> "WARN"
+    isStderr -> "ERROR"
+    else -> "INFO"
+}
 
 data class AlertUi(
     val kind: String,

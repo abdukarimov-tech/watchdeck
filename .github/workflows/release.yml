@@ -32,11 +32,17 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y musl-tools gcc-aarch64-linux-gnu protobuf-compiler
       - name: Build agent
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --locked --release --target ${{ matrix.target }}
         working-directory: agent
       - name: Build relay
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --locked --release --target ${{ matrix.target }}
         working-directory: relay
+      - name: Test Linux x86_64 binaries
+        if: matrix.arch == 'x86_64'
+        run: |
+          cargo test --locked --manifest-path agent/Cargo.toml --target ${{ matrix.target }}
+          cargo test --locked --manifest-path relay/Cargo.toml --target ${{ matrix.target }}
+          PULSE_TEST_RELAY_BIN="$GITHUB_WORKSPACE/relay/target/${{ matrix.target }}/release/pulse-relay" python3 relay/tests/monitoring_e2e.py
       - name: Prepare artifacts
         run: |
           cp agent/target/${{ matrix.target }}/release/pulse-agent pulse-agent-${{ matrix.arch }}
@@ -66,7 +72,7 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
       - name: Build release (unsigned without secrets)
-        run: gradle assembleRelease
+        run: ./gradlew assembleRelease
         working-directory: android
       - uses: actions/upload-artifact@v4
         with:
@@ -80,11 +86,14 @@ jobs:
     needs: [agent-binaries]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
+          pattern: binaries-*
           merge-multiple: true
           path: dist
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*
-          generate_release_notes: true
+          body_path: CHANGELOG.md
+          draft: true

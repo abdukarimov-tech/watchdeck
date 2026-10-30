@@ -8,9 +8,12 @@
 
 /* Begin PBXBuildFile section */
 		05F576AC63097507223959D8 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A081E1E016E827FA2D8C71A /* KeychainStore.swift */; };
+		071865324AC1580E90707B9A /* PushRegistration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AB93CDF587461D05F094299 /* PushRegistration.swift */; };
 		148C45C18FF5619872B0FA8F /* LocalNotifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C3E19691BD0035D0B67383A /* LocalNotifier.swift */; };
 		15FA272FAFB35645947555E4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 09AD216F32937FC10B550614 /* Assets.xcassets */; };
+		2C06CDB7B5AD2E8791122FBD /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = F9EFDF3A6B87142CA8F07ED4 /* Localizable.strings */; };
 		3117AB70E4CF52EB84F48C7F /* WatchDeckApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 707CBFBF3C47C63DE8B1C901 /* WatchDeckApp.swift */; };
+		333EC514AB18620D58CCD551 /* WidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEA90E8741C69DF3C772F30F /* WidgetSnapshot.swift */; };
 		3FC266CF391CE6F3CD7C1BAA /* ServerListScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAF856FF9D7797EB298116D6 /* ServerListScreen.swift */; };
 		53CBD059E7641BD0A618447D /* ServersStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89EFF4F37BC21B2A7E70BBBF /* ServersStore.swift */; };
 		57DB9EA4F7E87F0545D110E0 /* PulseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 29FFB67E095051E1E3225C96 /* PulseCore */; };
@@ -18,17 +21,46 @@
 		704961CB495EDC879067A459 /* privacy_policy.txt in Resources */ = {isa = PBXBuildFile; fileRef = FFEFC73C82F07BA98A8BE687 /* privacy_policy.txt */; };
 		7E92712A9F9100E62BB28AA9 /* OnboardingScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00C808A618B64C375D61132B /* OnboardingScreen.swift */; };
 		807474A6D1372C6C72955146 /* Localizable.stringsdict in Resources */ = {isa = PBXBuildFile; fileRef = D4BCBE77D2661AD691D0583E /* Localizable.stringsdict */; };
+		82A30E7F1CA8DDBA17C0768C /* WatchDeckWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = A02ABC509392C18DC9214795 /* WatchDeckWidget.swift */; };
 		A34ADA1BC45D30F73A8EAC62 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = F9EFDF3A6B87142CA8F07ED4 /* Localizable.strings */; };
 		A3BF84CBDCCD378A33E67297 /* ServerDetailsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3421DBE64BD22245A3030E13 /* ServerDetailsScreen.swift */; };
 		B068C46506648B349ABD79DE /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39D0ABADE6CCE2839EA33B05 /* AppModel.swift */; };
+		BDE6B5FE2F97FCABCB1B7F44 /* WidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEA90E8741C69DF3C772F30F /* WidgetSnapshot.swift */; };
+		CD6AF4166D96DE7091F59A96 /* WatchDeckWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = F80AF89F2EAA2BEDF445CD09 /* WatchDeckWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		EB04D091105F74DC491DCAC1 /* terms_of_service.txt in Resources */ = {isa = PBXBuildFile; fileRef = 8A237127700F22F5B7BA3ADA /* terms_of_service.txt */; };
 		EC349B5629795FE15F35AC7E /* LogsTerminalViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1C7635CD2C6260AAD1629DC /* LogsTerminalViews.swift */; };
+		FB29190F298E7FBC02BF1BEF /* MonitoringScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4479BF35A0B5B34C35173608 /* MonitoringScreens.swift */; };
 		FB46E88F9E558D856ECCC268 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FC34C34DAD8E5218A192830 /* Theme.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		5BA3C5D01AB7BFFF6EBC2C07 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 49902A0B920E8AEA32D493B4 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 84DE6AD3375B0845991C718E;
+			remoteInfo = WatchDeckWidgets;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		BBF2CB09428C914715602770 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				CD6AF4166D96DE7091F59A96 /* WatchDeckWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		00C808A618B64C375D61132B /* OnboardingScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingScreen.swift; sourceTree = "<group>"; };
 		09AD216F32937FC10B550614 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		0AB93CDF587461D05F094299 /* PushRegistration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushRegistration.swift; sourceTree = "<group>"; };
 		10677F30B47D5F048F98C654 /* ru */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ru; path = ru.lproj/Localizable.strings; sourceTree = "<group>"; };
 		143E97A336E6ADC7B701E5F5 /* ru */ = {isa = PBXFileReference; lastKnownFileType = text; name = ru; path = ru.lproj/privacy_policy.txt; sourceTree = "<group>"; };
 		228C3156B2EC986CCA4B4F03 /* en */ = {isa = PBXFileReference; lastKnownFileType = text; name = en; path = en.lproj/privacy_policy.txt; sourceTree = "<group>"; };
@@ -36,19 +68,27 @@
 		3421DBE64BD22245A3030E13 /* ServerDetailsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerDetailsScreen.swift; sourceTree = "<group>"; };
 		39D0ABADE6CCE2839EA33B05 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		3C3E19691BD0035D0B67383A /* LocalNotifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalNotifier.swift; sourceTree = "<group>"; };
+		4479BF35A0B5B34C35173608 /* MonitoringScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitoringScreens.swift; sourceTree = "<group>"; };
 		4686432D300426122E023B5F /* WatchDeck.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = WatchDeck.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4DABEB4C9C8B99D25F3C1203 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = en; path = en.lproj/Localizable.stringsdict; sourceTree = "<group>"; };
 		5A081E1E016E827FA2D8C71A /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		68FCD56F20409B1F8EF18659 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		6945BD3388DE7068D986DDC6 /* WatchDeck.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WatchDeck.entitlements; sourceTree = "<group>"; };
 		6FC34C34DAD8E5218A192830 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		707CBFBF3C47C63DE8B1C901 /* WatchDeckApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchDeckApp.swift; sourceTree = "<group>"; };
+		826F576A093516CBD4BFCCE6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		89EFF4F37BC21B2A7E70BBBF /* ServersStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServersStore.swift; sourceTree = "<group>"; };
+		951A3A6487C7E859B039B6CB /* WatchDeckWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WatchDeckWidgets.entitlements; sourceTree = "<group>"; };
 		97D17401E8946CC85598A391 /* ru */ = {isa = PBXFileReference; lastKnownFileType = text; name = ru; path = ru.lproj/terms_of_service.txt; sourceTree = "<group>"; };
+		A02ABC509392C18DC9214795 /* WatchDeckWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchDeckWidget.swift; sourceTree = "<group>"; };
 		B407B73C7626CF5CF769B231 /* SettingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsScreen.swift; sourceTree = "<group>"; };
 		B8CE6BB445004343EC8086BB /* PulseCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = PulseCore; path = PulseCore; sourceTree = SOURCE_ROOT; };
+		C0C2DEB2B917458AE04840A2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		CAF856FF9D7797EB298116D6 /* ServerListScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerListScreen.swift; sourceTree = "<group>"; };
+		CEA90E8741C69DF3C772F30F /* WidgetSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshot.swift; sourceTree = "<group>"; };
 		D1C7635CD2C6260AAD1629DC /* LogsTerminalViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogsTerminalViews.swift; sourceTree = "<group>"; };
 		EBAFE0B4A1D2810CB791EC10 /* en */ = {isa = PBXFileReference; lastKnownFileType = text; name = en; path = en.lproj/terms_of_service.txt; sourceTree = "<group>"; };
+		F80AF89F2EAA2BEDF445CD09 /* WatchDeckWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = WatchDeckWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -75,6 +115,7 @@
 			isa = PBXGroup;
 			children = (
 				4686432D300426122E023B5F /* WatchDeck.app */,
+				F80AF89F2EAA2BEDF445CD09 /* WatchDeckWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -83,6 +124,7 @@
 			isa = PBXGroup;
 			children = (
 				D1C7635CD2C6260AAD1629DC /* LogsTerminalViews.swift */,
+				4479BF35A0B5B34C35173608 /* MonitoringScreens.swift */,
 				00C808A618B64C375D61132B /* OnboardingScreen.swift */,
 				3421DBE64BD22245A3030E13 /* ServerDetailsScreen.swift */,
 				CAF856FF9D7797EB298116D6 /* ServerListScreen.swift */,
@@ -95,7 +137,9 @@
 			isa = PBXGroup;
 			children = (
 				BA72A27D78C6FE1E4A5C8357 /* Packages */,
+				663BD764C7D31AE485C06C30 /* Shared */,
 				6FC168F35D7E9D33C035606D /* WatchDeck */,
+				F71C3BDDF85CEE6B9DF8469A /* WatchDeckWidgets */,
 				297CCA6C9CA5583DACB85861 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -109,9 +153,19 @@
 			path = UI;
 			sourceTree = "<group>";
 		};
+		663BD764C7D31AE485C06C30 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				CEA90E8741C69DF3C772F30F /* WidgetSnapshot.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
 		6FC168F35D7E9D33C035606D /* WatchDeck */ = {
 			isa = PBXGroup;
 			children = (
+				826F576A093516CBD4BFCCE6 /* Info.plist */,
+				6945BD3388DE7068D986DDC6 /* WatchDeck.entitlements */,
 				2330251AE7048889C9E02D62 /* App */,
 				ECC009A51B2D35CD6751779B /* Data */,
 				7B1B2339E1F8C456F65C638C /* Notifications */,
@@ -125,6 +179,7 @@
 			isa = PBXGroup;
 			children = (
 				3C3E19691BD0035D0B67383A /* LocalNotifier.swift */,
+				0AB93CDF587461D05F094299 /* PushRegistration.swift */,
 			);
 			path = Notifications;
 			sourceTree = "<group>";
@@ -159,6 +214,16 @@
 			path = Data;
 			sourceTree = "<group>";
 		};
+		F71C3BDDF85CEE6B9DF8469A /* WatchDeckWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				C0C2DEB2B917458AE04840A2 /* Info.plist */,
+				A02ABC509392C18DC9214795 /* WatchDeckWidget.swift */,
+				951A3A6487C7E859B039B6CB /* WatchDeckWidgets.entitlements */,
+			);
+			path = WatchDeckWidgets;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -169,10 +234,12 @@
 				7F1F02ABE5F47326EEF262B4 /* Sources */,
 				C33B4AF5990A3C4A29AA281F /* Resources */,
 				4F0ED8F9C10329E89ED86F57 /* Frameworks */,
+				BBF2CB09428C914715602770 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				B2ABE3118F999D4E0C4B4E6E /* PBXTargetDependency */,
 			);
 			name = WatchDeck;
 			packageProductDependencies = (
@@ -181,6 +248,24 @@
 			productName = WatchDeck;
 			productReference = 4686432D300426122E023B5F /* WatchDeck.app */;
 			productType = "com.apple.product-type.application";
+		};
+		84DE6AD3375B0845991C718E /* WatchDeckWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4F9738B6B14993D378926ADF /* Build configuration list for PBXNativeTarget "WatchDeckWidgets" */;
+			buildPhases = (
+				1B306EF88012F6D6A9E3C363 /* Sources */,
+				DFFFAFF87C41B3D5C920DE80 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = WatchDeckWidgets;
+			packageProductDependencies = (
+			);
+			productName = WatchDeckWidgets;
+			productReference = F80AF89F2EAA2BEDF445CD09 /* WatchDeckWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -192,6 +277,9 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					024210B73876F33A6E04D2DB = {
+						ProvisioningStyle = Automatic;
+					};
+					84DE6AD3375B0845991C718E = {
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -215,6 +303,7 @@
 			projectRoot = "";
 			targets = (
 				024210B73876F33A6E04D2DB /* WatchDeck */,
+				84DE6AD3375B0845991C718E /* WatchDeckWidgets */,
 			);
 		};
 /* End PBXProject section */
@@ -232,9 +321,26 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		DFFFAFF87C41B3D5C920DE80 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2C06CDB7B5AD2E8791122FBD /* Localizable.strings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		1B306EF88012F6D6A9E3C363 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				82A30E7F1CA8DDBA17C0768C /* WatchDeckWidget.swift in Sources */,
+				BDE6B5FE2F97FCABCB1B7F44 /* WidgetSnapshot.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		7F1F02ABE5F47326EEF262B4 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -243,17 +349,28 @@
 				05F576AC63097507223959D8 /* KeychainStore.swift in Sources */,
 				148C45C18FF5619872B0FA8F /* LocalNotifier.swift in Sources */,
 				EC349B5629795FE15F35AC7E /* LogsTerminalViews.swift in Sources */,
+				FB29190F298E7FBC02BF1BEF /* MonitoringScreens.swift in Sources */,
 				7E92712A9F9100E62BB28AA9 /* OnboardingScreen.swift in Sources */,
+				071865324AC1580E90707B9A /* PushRegistration.swift in Sources */,
 				A3BF84CBDCCD378A33E67297 /* ServerDetailsScreen.swift in Sources */,
 				3FC266CF391CE6F3CD7C1BAA /* ServerListScreen.swift in Sources */,
 				53CBD059E7641BD0A618447D /* ServersStore.swift in Sources */,
 				65D26AE729DD7914CF12B1D9 /* SettingsScreen.swift in Sources */,
 				FB46E88F9E558D856ECCC268 /* Theme.swift in Sources */,
 				3117AB70E4CF52EB84F48C7F /* WatchDeckApp.swift in Sources */,
+				333EC514AB18620D58CCD551 /* WidgetSnapshot.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		B2ABE3118F999D4E0C4B4E6E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 84DE6AD3375B0845991C718E /* WatchDeckWidgets */;
+			targetProxy = 5BA3C5D01AB7BFFF6EBC2C07 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXVariantGroup section */
 		8A237127700F22F5B7BA3ADA /* terms_of_service.txt */ = {
@@ -295,6 +412,30 @@
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
+		050BD063268E383D10BA65B3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = WatchDeckWidgets/WatchDeckWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = WatchDeckWidgets/Info.plist;
+				INFOPLIST_KEY_NSExtension_NSExtensionPointIdentifier = "com.apple.widgetkit-extension";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.pulse.widgets;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
 		141F35DF325B5ED82A79020E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -351,15 +492,42 @@
 			};
 			name = Release;
 		};
+		3D8FA81A7D8A7BD61B033681 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = WatchDeckWidgets/WatchDeckWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = WatchDeckWidgets/Info.plist;
+				INFOPLIST_KEY_NSExtension_NSExtensionPointIdentifier = "com.apple.widgetkit-extension";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.pulse.widgets;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		7978054F4D60AF5470BFC1FC /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				APS_ENVIRONMENT = production;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = WatchDeck/WatchDeck.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = WatchDeck/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = WatchDeck;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Face ID / Touch ID is used to unlock access to your servers.";
@@ -369,7 +537,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = app.pulse;
 				SDKROOT = iphoneos;
 				SWIFT_STRICT_CONCURRENCY = minimal;
@@ -381,12 +549,15 @@
 		9AE4D09465D1C626DAD25CAC /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				APS_ENVIRONMENT = development;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = WatchDeck/WatchDeck.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = WatchDeck/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = WatchDeck;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Face ID / Touch ID is used to unlock access to your servers.";
@@ -396,7 +567,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = app.pulse;
 				SDKROOT = iphoneos;
 				SWIFT_STRICT_CONCURRENCY = minimal;
@@ -485,6 +656,15 @@
 			buildConfigurations = (
 				CC8B020630F505ACC50419FB /* Debug */,
 				141F35DF325B5ED82A79020E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		4F9738B6B14993D378926ADF /* Build configuration list for PBXNativeTarget "WatchDeckWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				050BD063268E383D10BA65B3 /* Debug */,
+				3D8FA81A7D8A7BD61B033681 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

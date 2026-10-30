@@ -17,6 +17,7 @@ struct ServerConfig: Codable, Identifiable, Equatable {
     /// "password" | "key"
     var sshAuthKind: String
     var isDemo: Bool
+    var sshHost: String? = nil
 
     var endpoint: PulseEndpoint {
         PulseEndpoint(baseURL: url, token: token ?? "", certPem: certPem)

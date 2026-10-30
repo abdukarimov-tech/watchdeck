@@ -16,6 +16,7 @@ import app.pulse.data.MockPulseRepository
 import app.pulse.data.PulseRepository
 import app.pulse.data.combineSelected
 import app.pulse.net.ConnState
+import app.pulse.net.MonitoringApi
 import app.pulse.net.PulseError
 import app.pulse.net.RelayAdmin
 import app.pulse.net.SshInstaller
@@ -47,6 +48,8 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
     val servers = MutableStateFlow(serversStore.load())
     val activeServerId = MutableStateFlow(serversStore.activeId())
 
+    private val widgetTimes = mutableMapOf<String,Long>()
+    private val widgetIncidents = mutableMapOf<String,String>()
     private val repos = linkedMapOf<String, PulseRepository>()
 
     // ---- данные по каждому серверу (для виджетов) ----
@@ -302,6 +305,7 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
         repos.clear()
         serversStore.clear()
         servers.value = emptyList()
+        publishWidget(true)
         activeServerId.value = null
         displayRepo.value = null
         selectedAgent.value = null
@@ -318,6 +322,7 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
             repos.remove(id)?.close()
             dropServerData(id)
         }
+        publishWidget(true)
         servers.value.forEach { cfg ->
             if (!repos.containsKey(cfg.id)) {
                 attach(
@@ -335,14 +340,18 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
     private fun attach(id: String, repo: PulseRepository) {
         repos[id] = repo
         viewModelScope.launch {
-            repo.connectionState.collect { st -> serverStates.update { it + (id to st) } }
+            repo.connectionState.collect { st -> serverStates.update { it + (id to st) }; publishWidget(true) }
         }
         viewModelScope.launch {
-            repo.agents.collect { m -> serverAgents.update { it + (id to m) } }
+            repo.agents.collect { m -> serverAgents.update { it + (id to m) }; if (m.isNotEmpty()) registerPushDevices() }
         }
         viewModelScope.launch {
             repo.metricsByAgent.collect { m ->
-                aggregate(m)?.let { agg -> serverMetrics.update { it + (id to agg) } }
+                aggregate(m)?.let { agg ->
+                    serverMetrics.update { it + (id to agg) }
+                    widgetTimes[id] = System.currentTimeMillis()/1000
+                    publishWidget()
+                }
             }
         }
         viewModelScope.launch {
@@ -353,7 +362,9 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
         // алерты со всех серверов — в snackbar
         viewModelScope.launch {
             repo.events.collect { list ->
-                val alert = list.firstOrNull() ?: return@collect
+                val alert = list.filter { it.kind in setOf("CONTAINER_DIED", "OOM", "SERVER_OFFLINE", "RESOURCE_HIGH", "CONTAINER_UNHEALTHY", "RESTART_LOOP") }.maxByOrNull { it.atUnix } ?: return@collect
+                widgetIncidents[id] = "${alert.containerName}: ${alert.message}"
+                publishWidget(true)
                 val app = getApplication<Application>()
                 when (alert.kind) {
                     "CONTAINER_DIED", "OOM" -> toasts.emit(
@@ -371,7 +382,12 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun publishWidget(force: Boolean = false) {
+        app.pulse.widget.WidgetSnapshots.publish(getApplication(), servers.value, serverStates.value,
+            serverMetrics.value, widgetTimes, serverAgents.value, widgetIncidents, force)
+    }
     private fun dropServerData(id: String) {
+        widgetTimes.remove(id); widgetIncidents.remove(id)
         serverStates.update { it - id }
         serverMetrics.update { it - id }
         serverAgents.update { it - id }
@@ -552,8 +568,9 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
             }.getOrNull() ?: return@launch
             servers.value.filter { !it.isDemo }.forEach { cfg ->
                 runCatching {
-                    RelayAdmin(cfg.relayUrl, cfg.adminToken, cfg.relayCertPem)
-                        .registerDevice(cfg.token, fcmToken, cfg.label)
+                    val admin = RelayAdmin(cfg.relayUrl, cfg.adminToken, cfg.relayCertPem)
+                    val agents = MonitoringApi(cfg).agentIds()
+                    for (agent in agents) admin.registerDevice(cfg.token, fcmToken, agent)
                 }.onFailure { e ->
                     android.util.Log.w("PulseVM", "device registration failed: ${e.message}")
                 }

@@ -80,14 +80,18 @@ impl FcmSender {
                     let url = format!(
                         "https://fcm.googleapis.com/v1/projects/{project_id}/messages:send"
                     );
-                    if let Err(e) = http
+                    match http
                         .post(&url)
                         .bearer_auth(&token)
                         .json(&payload)
                         .send()
                         .await
                     {
-                        tracing::warn!(error = %e, "fcm send failed");
+                        Ok(response) if !response.status().is_success() => {
+                            tracing::warn!(status=%response.status(),"FCM rejected notification")
+                        }
+                        Err(e) => tracing::warn!(error=%e,"fcm send failed"),
+                        _ => {}
                     }
                 }
             }

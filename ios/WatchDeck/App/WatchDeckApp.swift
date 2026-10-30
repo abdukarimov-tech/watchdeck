@@ -4,6 +4,7 @@ import PulseCore
 
 @main
 struct WatchDeckApp: App {
+    @UIApplicationDelegateAdaptor(PushRegistration.self) private var pushRegistration
     @StateObject private var model = AppModel()
     @Environment(\.scenePhase) private var scenePhase
 
@@ -12,7 +13,13 @@ struct WatchDeckApp: App {
             RootView()
                 .environmentObject(model)
                 .tint(PulseTheme.accent)
+                .onOpenURL { url in
+                    model.bootstrap()
+                    if url.scheme == "watchdeck", url.host == "server", let id = url.pathComponents.last,
+                       model.servers.contains(where: { $0.id == id }) { model.select(server: id); model.widgetServerId = id }
+                }
                 .onAppear { model.bootstrap() }
+                .onReceive(NotificationCenter.default.publisher(for: .apnsRegistered)) { _ in model.registerAPNs() }
                 .onChange(of: scenePhase) { _, phase in
                     model.handleScenePhase(phase)
                 }

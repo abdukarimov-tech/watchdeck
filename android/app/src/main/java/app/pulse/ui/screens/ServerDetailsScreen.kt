@@ -2,6 +2,11 @@ package app.pulse.ui.screens
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -33,11 +38,12 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -74,6 +80,8 @@ private enum class DetailsTab(val titleRes: Int) {
     Containers(R.string.tab_containers),
     Logs(R.string.tab_logs),
     Terminal(R.string.details_tab_terminal),
+    History(R.string.history_title),
+    Rules(R.string.rules_title),
 }
 
 /**
@@ -86,6 +94,8 @@ fun ServerDetailsScreen(
     vm: PulseViewModel,
     serverId: String,
     onBack: () -> Unit,
+    initialAgentId: String? = null,
+    initialLogContainerId: String? = null,
 ) {
     val servers by vm.servers.collectAsState()
     val activeServerId by vm.activeServerId.collectAsState()
@@ -120,7 +130,13 @@ fun ServerDetailsScreen(
     val agentMetrics = selectedAgent?.let { metricsByAgent[it] }
     val agentContainers = selectedAgent?.let { containersByAgent[it] } ?: emptyList()
 
-    var tab by remember { mutableStateOf(DetailsTab.Metrics) }
+    var tab by remember(serverId, initialLogContainerId) { mutableStateOf(if (initialLogContainerId != null) DetailsTab.Logs else DetailsTab.Metrics) }
+    var logContainerId by remember(serverId, selectedAgent) { mutableStateOf(initialLogContainerId?.takeIf { initialAgentId == selectedAgent }) }
+    LaunchedEffect(initialAgentId) {
+        if (initialAgentId != null) {
+            if (isActive) vm.selectAgent(initialAgentId) else localAgent = initialAgentId
+        }
+    }
     var confirmRemove by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
     var updatingAgent by remember { mutableStateOf(false) }
@@ -131,10 +147,11 @@ fun ServerDetailsScreen(
 
     // логи: стрим первого запущенного контейнера выбранного агента, per-repo
     if (tab == DetailsTab.Logs) {
-        LaunchedEffect(repo, selectedAgent) {
-            val running = agentContainers.firstOrNull { it.state == "RUNNING" }
+        androidx.compose.runtime.DisposableEffect(repo) { onDispose { repo?.stopLogs() } }
+        LaunchedEffect(repo, selectedAgent, logContainerId, agentContainers.map { it.id }) {
+            val running = agentContainers.firstOrNull { it.id == logContainerId } ?: agentContainers.firstOrNull { it.state == "RUNNING" } ?: agentContainers.firstOrNull()
             if (repo != null && selectedAgent != null && running != null) {
-                repo.requestLogs(selectedAgent, running.id)
+                repo.requestLogs(selectedAgent, logContainerId ?: running.id)
             }
         }
     }
@@ -150,7 +167,7 @@ fun ServerDetailsScreen(
                         Text(server.label.ifEmpty { stringResource(R.string.demo_label) })
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             val (dotColor, statusText) = when (state) {
-                                ConnState.CONNECTED -> PulseSuccess to stringResource(R.string.conn_status_online)
+                                ConnState.CONNECTED -> if (agents.isEmpty()) PulseWarn to stringResource(R.string.relay_online_status) else PulseSuccess to stringResource(R.string.conn_status_online)
                                 ConnState.CONNECTING -> PulseWarn to stringResource(R.string.conn_status_connecting)
                                 ConnState.DISCONNECTED -> PulseError to stringResource(R.string.conn_status_offline)
                             }
@@ -287,28 +304,43 @@ fun ServerDetailsScreen(
                 }
             }
 
-            TabRow(
+            ScrollableTabRow(
                 selectedTabIndex = tab.ordinal,
-                containerColor = MaterialTheme.colorScheme.surface,
+                edgePadding = 16.dp,
+                containerColor = MaterialTheme.colorScheme.background,
+                indicator = {},
+                divider = {},
+                modifier = Modifier.padding(vertical = 8.dp),
             ) {
                 DetailsTab.entries.forEach { t ->
                     Tab(
+                        modifier = Modifier.padding(end = 6.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (tab == t) MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surfaceContainer),
+                        selectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         selected = tab == t,
                         onClick = { tab = t },
-                        text = { Text(stringResource(t.titleRes)) },
+                        text = { Text(stringResource(t.titleRes), maxLines = 1) },
                     )
                 }
             }
 
             when (tab) {
-                DetailsTab.Metrics -> MetricsContent(metrics = agentMetrics)
+                DetailsTab.Metrics -> key(serverId, selectedAgent) { MetricsContent(metrics = agentMetrics, noAgents = state == ConnState.CONNECTED && agents.isEmpty()) }
                 DetailsTab.Containers -> ContainersScreen(
                     containers = agentContainers,
                     onAction = vm::action,
                     canAct = isActive,
+                    onLogs = { logContainerId = it; tab = DetailsTab.Logs },
                 )
-                DetailsTab.Logs -> LogsScreen(logLines)
+                DetailsTab.Logs -> LogsScreen(logLines, agentContainers,
+                    logContainerId ?: agentContainers.firstOrNull { it.state == "RUNNING" }?.id ?: agentContainers.firstOrNull()?.id,
+                    onSelect = { logContainerId = it })
                 DetailsTab.Terminal -> TerminalTab(server = server)
+                DetailsTab.History -> HistoryScreen(server, selectedAgent)
+                DetailsTab.Rules -> AlertRulesScreen(server, selectedAgent)
             }
         }
     }
@@ -335,10 +367,10 @@ fun ServerDetailsScreen(
 }
 
 @Composable
-private fun MetricsContent(metrics: MetricsUi?) {
+private fun MetricsContent(metrics: MetricsUi?, noAgents: Boolean = false) {
     if (metrics == null) {
         Text(
-            stringResource(R.string.servers_connecting_caption),
+            stringResource(if (noAgents) R.string.servers_no_agents_caption else R.string.servers_connecting_caption),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
@@ -348,7 +380,7 @@ private fun MetricsContent(metrics: MetricsUi?) {
         return
     }
     val cpuFraction = (metrics.cpuPercent / 100.0).toFloat()
-    val memFraction = metrics.memUsedBytes.toFloat() / metrics.memTotalBytes.toFloat()
+    val memFraction = metrics.memUsedBytes.toFloat() / metrics.memTotalBytes.coerceAtLeast(1).toFloat()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -373,19 +405,12 @@ private fun MetricsContent(metrics: MetricsUi?) {
                 )
             }
         }
-        item {
-            Text(
-                stringResource(R.string.details_uptime, formatUptime(metrics.uptimeSeconds)),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
         item { NetworkCard(metrics) }
         items(metrics.disks, key = { it.mount }) { DiskCard(it) }
     }
 }
 
-private val QUICK_COMMANDS = listOf("docker ps", "docker stats --no-stream", "df -h", "free -m", "uptime")
+private val QUICK_COMMANDS = listOf("docker ps", "docker stats --no-stream", "df -h", "free -m", "uptime", "ps -eo pid,comm,%cpu,%mem --sort=-%cpu | head -15", "systemctl --failed --no-pager")
 
 @Composable
 private fun TerminalTab(server: app.pulse.crypto.ServersStore.ServerConfig) {
@@ -401,6 +426,16 @@ private fun TerminalTab(server: app.pulse.crypto.ServersStore.ServerConfig) {
     }
     var output by remember(server.id) { mutableStateOf("") }
     var input by remember(server.id) { mutableStateOf("") }
+    val commandPrefs = remember { context.getSharedPreferences("watchdeck_diagnostics", android.content.Context.MODE_PRIVATE) }
+    var savedCommands by remember { mutableStateOf(runCatching {
+        val a = org.json.JSONArray(commandPrefs.getString("commands", "[]"))
+        (0 until a.length()).map { a.getString(it) }
+    }.getOrDefault(emptyList())) }
+    var pendingCommand by remember { mutableStateOf<String?>(null) }
+    fun saveCommands(next: List<String>) {
+        savedCommands = next.distinct().take(30)
+        commandPrefs.edit().putString("commands", org.json.JSONArray(savedCommands).toString()).apply()
+    }
     var connectError by remember(server.id) { mutableStateOf<String?>(null) }
     val terminal = remember(server.id) {
         SshTerminal(
@@ -433,6 +468,13 @@ private fun TerminalTab(server: app.pulse.crypto.ServersStore.ServerConfig) {
         onDispose { terminal.close() }
     }
 
+    pendingCommand?.let { cmd ->
+        AlertDialog(onDismissRequest = { pendingCommand = null },
+            title = { Text(stringResource(R.string.diagnostic_confirm)) },
+            text = { Text("${server.sshUser}@${server.label}:${server.sshPort}\n\n$cmd", fontFamily = FontFamily.Monospace) },
+            confirmButton = { TextButton(onClick = { terminal.send(cmd); input = ""; pendingCommand = null }) { Text(stringResource(R.string.diagnostic_run)) } },
+            dismissButton = { TextButton(onClick = { pendingCommand = null }) { Text(stringResource(R.string.settings_cancel)) } })
+    }
     Column(Modifier.fillMaxSize()) {
         Surface(
             color = Color(0xFF0D1117),
@@ -473,16 +515,22 @@ private fun TerminalTab(server: app.pulse.crypto.ServersStore.ServerConfig) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp),
+                .padding(horizontal = 12.dp).horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            QUICK_COMMANDS.forEach { cmd ->
+            (QUICK_COMMANDS + savedCommands).distinct().forEach { cmd ->
                 FilterChip(
                     selected = false,
-                    onClick = { terminal.send(cmd) },
+                    onClick = { pendingCommand = cmd },
                     label = { Text(cmd, style = MaterialTheme.typography.labelSmall) },
                 )
             }
+        }
+        if (input.isNotBlank() && input.length <= 1024 && input !in QUICK_COMMANDS && input !in savedCommands) {
+            TextButton(onClick = { saveCommands(savedCommands + input) }) { Text(stringResource(R.string.diagnostic_save)) }
+        }
+        if (savedCommands.isNotEmpty()) {
+            TextButton(onClick = { saveCommands(emptyList()) }) { Text(stringResource(R.string.diagnostic_clear)) }
         }
         Row(
             Modifier
@@ -502,8 +550,7 @@ private fun TerminalTab(server: app.pulse.crypto.ServersStore.ServerConfig) {
             FilledIconButton(
                 onClick = {
                     if (input.isNotBlank()) {
-                        terminal.send(input)
-                        input = ""
+                        pendingCommand = input
                     }
                 },
                 enabled = connectError == null,

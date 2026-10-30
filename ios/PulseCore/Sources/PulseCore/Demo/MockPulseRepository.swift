@@ -28,6 +28,11 @@ public final class MockPulseRepository: PulseRepository, @unchecked Sendable {
             container.cpuPercent = cpu
             container.memUsed = mem
             container.memLimit = 2 * 1024 * 1024 * 1024
+            container.health = status.contains("(unhealthy)") ? "unhealthy" : (status.contains("(healthy)") ? "healthy" : "none")
+            if ["web-nginx", "batch-worker", "search"].contains(name) {
+                container.composeProject = "demo-stack"
+                container.composeService = name
+            }
             return container
         }
         return [
@@ -37,9 +42,11 @@ public final class MockPulseRepository: PulseRepository, @unchecked Sendable {
               batchWorkerRunning ? "Up 2 seconds" : "Exited (137) 2 hours ago", 0, 0),
             c("demo-pg", "postgres", "postgres:16-alpine", .running, "Up 3 days", 1.4, 640 * 1024 * 1024),
             c("demo-redis", "redis", "redis:7-alpine", .running, "Up 5 days", 0.6, 64 * 1024 * 1024),
+            c("demo-search", "search", "search:demo", .running, "Up 1 hour (unhealthy)", 1.0, 128 * 1024 * 1024),
         ]
     }
 
+    private var requestedLogs: (String, String)?
     public init() {}
 
     public func start() {
@@ -70,7 +77,7 @@ public final class MockPulseRepository: PulseRepository, @unchecked Sendable {
     }
 
     public func performAction(agentId: String, containerId: String, kind: ContainerActionKind) async throws {
-        guard kind == .restart else {
+        guard kind == .restart || kind == .start else {
             throw PulseError.relay("demo mode: action not supported")
         }
         try await Task.sleep(nanoseconds: 600_000_000)
@@ -82,8 +89,10 @@ public final class MockPulseRepository: PulseRepository, @unchecked Sendable {
     }
 
     public func requestLogs(agentId: String, containerId: String, streamId: String) {
-        // живой поток уже шлёт чанки; при смене streamId UI сам сбрасывает строки
+        lock.lock(); requestedLogs = (containerId, streamId); lock.unlock()
     }
+
+    public func stopLogs() { lock.lock(); requestedLogs = nil; lock.unlock() }
 
     public func refreshAgents() async throws -> [AgentInfo] {
         [AgentInfo(agentId: Self.demoAgentId, hostname: "demo-server", agentVersion: "1.0.0")]
@@ -141,7 +150,9 @@ public final class MockPulseRepository: PulseRepository, @unchecked Sendable {
             ts += 1
             let (stderr, text) = samples[index % samples.count]
             index += 1
-            let chunk = LogsChunk(containerId: "demo-nginx", streamId: "demo",
+            let request = lock.withLock { requestedLogs }
+            guard let request else { continue }
+            let chunk = LogsChunk(containerId: request.0, streamId: request.1,
                                   lines: [LogLine(tsUnix: Int64(ts), isStderr: stderr, text: text)], eof: false)
             emit(.logs(chunk))
         }

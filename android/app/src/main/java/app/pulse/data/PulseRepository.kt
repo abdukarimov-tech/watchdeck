@@ -34,6 +34,7 @@ interface PulseRepository {
 
     suspend fun action(agentId: String, containerId: String, kind: String): Result<Unit>
     fun requestLogs(agentId: String, containerId: String)
+    fun stopLogs() {}
     fun close()
 }
 
@@ -73,10 +74,11 @@ class MockPulseRepository : PulseRepository {
     private val containersFlow = MutableStateFlow(
         mapOf(
             DEMO_AGENT_ID to listOf(
-                ContainerUi("a1b2c3d4e5f6", "web-nginx", "nginx:1.25", "RUNNING", "Up 3 days (healthy)"),
-                ContainerUi("ffeeddccbbaa", "batch-worker", "worker:latest", "EXITED", "Exited (137) 2 minutes ago"),
+                ContainerUi("a1b2c3d4e5f6", "web-nginx", "nginx:1.25", "RUNNING", "Up 3 days (healthy)", health = "healthy", composeProject = "demo-stack", composeService = "web"),
+                ContainerUi("ffeeddccbbaa", "batch-worker", "worker:latest", "EXITED", "Exited (137) 2 minutes ago", composeProject = "demo-stack", composeService = "worker"),
                 ContainerUi("998877665544", "postgres", "postgres:16", "RUNNING", "Up 12 days"),
                 ContainerUi("112233445566", "redis", "redis:7", "RUNNING", "Up 12 days"),
+                ContainerUi("cafebabe1234", "search", "search:demo", "RUNNING", "Up 1 hour (unhealthy)", health = "unhealthy", composeProject = "demo-stack", composeService = "search"),
             ),
         ),
     )
@@ -111,7 +113,7 @@ class MockPulseRepository : PulseRepository {
         delay(600) // имитация запроса к релею
         containersFlow.value = containersFlow.value.mapValues { (_, list) ->
             list.map {
-                if (it.id == containerId && kind == "ACTION_RESTART") {
+                if (it.id == containerId && kind in listOf("ACTION_RESTART", "ACTION_START")) {
                     it.copy(state = "RUNNING", status = "Restarted just now")
                 } else {
                     it
@@ -121,9 +123,12 @@ class MockPulseRepository : PulseRepository {
         return Result.success(Unit)
     }
 
+    private var logsJob: kotlinx.coroutines.Job? = null
+    override fun stopLogs() { logsJob?.cancel(); logsJob = null }
     override fun requestLogs(agentId: String, containerId: String) {
+        stopLogs()
         logLines.value = emptyList()
-        scope.launch {
+        logsJob = scope.launch {
             val samples = listOf(
                 LogLineUi(0, false, "listening on :8080"),
                 LogLineUi(0, false, "GET /health 200 2ms"),

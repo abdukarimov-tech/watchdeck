@@ -26,6 +26,7 @@ enum InstallState: Equatable {
 final class AppModel: ObservableObject {
     @Published var servers: [ServerConfig] = []
     @Published var activeId: String?
+    @Published var widgetServerId: String?
     @Published var serverStates: [String: ConnectionState] = [:]
     @Published var agentsByServer: [String: [AgentInfo]] = [:]
     @Published var metricsByServer: [String: [String: MetricsReport]] = [:]
@@ -59,9 +60,13 @@ final class AppModel: ObservableObject {
         }
     }
 
+    private var registeredPush = Set<String>()
+    private var widgetTimes: [String: Double] = [:]
     private var repos: [String: PulseRepository] = [:]
     private var activeLogStream: String?
     private var activeLogContainerId: String?
+    private var activeLogServerId: String?
+    private var activeLogAgentId: String?
     private var watchdogSuppressed = false
     private var wasConnected: Set<String> = []
     private var toastTask: Task<Void, Never>?
@@ -74,7 +79,7 @@ final class AppModel: ObservableObject {
         let stored = ServersStore.load()
         servers = stored
         activeId = ServersStore.activeId
-        for server in servers where !server.isDemo {
+        for server in servers {
             startRepo(for: server)
         }
         if activeId == nil, let first = servers.first?.id {
@@ -147,16 +152,21 @@ final class AppModel: ObservableObject {
         switch event {
         case .state(let state):
             serverStates[serverId] = state
+            if state == .connected { registerAPNs() }
+            publishWidget(force: true)
             handleWatchdog(serverId: serverId, state: state)
 
         case .agents(let agents):
             agentsByServer[serverId] = agents
+            registerAPNs()
             if selectedAgentByServer[serverId] == nil, let first = agents.first {
                 selectedAgentByServer[serverId] = first.agentId
             }
 
         case .metrics(_, let metrics):
             metricsByServer[serverId, default: [:]][agentOf(event: event) ?? ""] = metrics
+            widgetTimes[serverId] = Date().timeIntervalSince1970
+            publishWidget()
 
         case .containers(_, let containers):
             containersByServer[serverId, default: [:]][agentOf(event: event) ?? ""] = containers
@@ -177,6 +187,7 @@ final class AppModel: ObservableObject {
                                   agentId: agentOf(event: event) ?? ""), at: 0)
             if events.count > 200 { events.removeLast(events.count - 200) }
             eventsByServer[serverId] = events
+            publishWidget(force: true)
 
             switch alert.kind {
             case .containerDied:
@@ -231,7 +242,7 @@ final class AppModel: ObservableObject {
 
     func select(server id: String) {
         guard id != activeId else { return }
-        activeLogStream = nil
+        stopLogs()
         logLines = []
         activeId = id
         watchdogSuppressed = true
@@ -283,6 +294,8 @@ final class AppModel: ObservableObject {
             }
         }
         servers.removeAll { $0.id == id }
+        widgetTimes.removeValue(forKey: id)
+        publishWidget(force: true)
         ServersStore.save(servers)
         wasConnected.remove(id)
         if activeId == id {
@@ -300,6 +313,8 @@ final class AppModel: ObservableObject {
         for id in repos.keys { stopRepo(id) }
         ServersStore.wipeAll()
         servers = []
+        widgetTimes = [:]
+        publishWidget(force: true)
         activeId = nil
         serverStates = [:]
         agentsByServer = [:]
@@ -313,10 +328,10 @@ final class AppModel: ObservableObject {
 
     // MARK: - Container actions / logs
 
-    func performContainerAction(containerId: String, kind: ContainerActionKind) {
-        guard let server = activeServer,
-              let repo = repos[server.id],
-              let agentId = selectedAgent(serverId: server.id) else { return }
+    func performContainerAction(serverId: String? = nil, containerId: String, kind: ContainerActionKind) {
+        guard let id = serverId ?? activeId,
+              let repo = repos[id],
+              let agentId = selectedAgent(serverId: id) else { return }
         Task { @MainActor [weak self] in
             do {
                 try await repo.performAction(agentId: agentId, containerId: containerId, kind: kind)
@@ -327,16 +342,20 @@ final class AppModel: ObservableObject {
     }
 
     /// Запрос стрима логов; повторный вызов с тем же контейнером не пересоздает поток.
-    func requestLogs(agentId: String, containerId: String) {
-        guard let server = activeServer, let repo = repos[server.id] else { return }
-        let isNewStream = activeLogContainerId != containerId || activeLogStream == nil
-        let streamId = isNewStream ? UUID().uuidString : activeLogStream!
-        if isNewStream {
-            activeLogStream = streamId
-            activeLogContainerId = containerId
-            logLines = []
-        }
+    func requestLogs(serverId: String? = nil, agentId: String, containerId: String) {
+        guard let id = serverId ?? activeId, let repo = repos[id] else { return }
+        if activeLogServerId == id && activeLogAgentId == agentId && activeLogContainerId == containerId && activeLogStream != nil { return }
+        stopLogs()
+        activeLogServerId = id; activeLogAgentId = agentId; activeLogContainerId = containerId
+        let streamId = UUID().uuidString
+        activeLogStream = streamId
+        logLines = []
         repo.requestLogs(agentId: agentId, containerId: containerId, streamId: streamId)
+    }
+
+    func stopLogs() {
+        if let id = activeLogServerId { repos[id]?.stopLogs() }
+        activeLogStream = nil; activeLogServerId = nil; activeLogAgentId = nil; activeLogContainerId = nil
     }
 
     /// Первый запущенный контейнер (для автостарта стрима логов).
@@ -368,7 +387,7 @@ final class AppModel: ObservableObject {
             do {
                 let result = try await installer.install()
                 self.log("[ssh] done — \(result.relayUrl)")
-                let server = self.makeServer(from: result)
+                let server = self.makeServer(from: result, sshHost: host, sshPort: port)
                 self.servers.append(server)
                 ServersStore.save(self.servers)
                 self.startRepo(for: server)
@@ -390,7 +409,7 @@ final class AppModel: ObservableObject {
         }
         showToast(text: NSLocalizedString("agent_updating", comment: ""), isError: false)
         let installer = SSHInstaller(params: SSHInstallParams(
-            host: server.endpoint.hostForLabel,
+            host: server.sshHost ?? server.endpoint.hostForLabel,
             port: server.sshPort,
             username: server.sshUser,
             auth: auth))
@@ -410,7 +429,7 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func makeServer(from result: SSHInstallResult) -> ServerConfig {
+    private func makeServer(from result: SSHInstallResult, sshHost: String, sshPort: Int) -> ServerConfig {
         var server = ServerConfig(
             id: UUID().uuidString,
             label: result.agentLabel,
@@ -427,6 +446,8 @@ final class AppModel: ObservableObject {
         server.sshKeyPass = sshKeyPassForInstall
         server.sshAuthKind = sshAuthKindForInstall
         server.sshUser = sshUserForInstall
+        server.sshHost = sshHost
+        server.sshPort = sshPort
         return server
     }
 
@@ -451,6 +472,43 @@ final class AppModel: ObservableObject {
         prompt.resume?.resume(returning: accepted)
     }
 
+    func registerAPNs() {
+        guard let token = UserDefaults.standard.string(forKey: "apns_device_token") else { return }
+        #if DEBUG
+        let sandbox = true
+        #else
+        let sandbox = false
+        #endif
+        for server in servers where !server.isDemo {
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                do {
+                    let api = MonitoringAPI(endpoint: server.endpoint)
+                    for agent in try await api.agentIDs() {
+                        let key = "\(server.url):\(agent):\(token)"
+                        guard !self.registeredPush.contains(key) else { continue }
+                        try await api.registerAPNs(token: token, agent: agent, sandbox: sandbox)
+                        self.registeredPush.insert(key)
+                    }
+                } catch { NSLog("WatchDeck push subscription failed: %@", String(describing: error)) }
+            }
+        }
+    }
+
+    private func publishWidget(force: Bool = false) {
+        let snapshots = servers.map { server in
+            let m = metrics(serverId: server.id)
+            let latest = eventsByServer[server.id]?.filter { [.containerDied, .oom, .serverOffline, .resourceHigh, .containerUnhealthy, .restartLoop].contains($0.kind) }.max { $0.atUnix < $1.atUnix }
+            let incident = latest.map { "\($0.containerName): \($0.message)" } ?? ""
+            let state = serverStates[server.id] == .connected ? "connected" : "disconnected"
+            return WidgetServerSnapshot(id: server.id, label: server.label, state: state,
+                at: widgetTimes[server.id] ?? 0, cpu: m.cpuPercent,
+                memory: m.memTotalBytes > 0 ? Double(m.memUsedBytes)/Double(m.memTotalBytes)*100 : 0,
+                incident: incident)
+        }
+        WidgetSnapshotCache.write(snapshots, force: force)
+    }
+
     // MARK: - Misc
 
     func showToast(text: String, isError: Bool) {
@@ -467,7 +525,7 @@ final class AppModel: ObservableObject {
         if installLog.count > 200 { installLog.removeFirst(installLog.count - 200) }
     }
 
-    static func errorText(_ error: Error) -> String {
+    nonisolated static func errorText(_ error: Error) -> String {
         switch error {
         case PulseError.offline:
             return NSLocalizedString("error_offline", comment: "")

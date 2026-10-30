@@ -66,16 +66,15 @@ class ServerSecretStore(context: Context) {
             .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
             .setKeySize(256)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            spec.setIsStrongBoxBacked(true) // аппаратный модуль, если есть
+            try {
+                generator.init(spec.setIsStrongBoxBacked(true).build())
+                return generator.generateKey()
+            } catch (_: StrongBoxUnavailableException) {
+                spec.setIsStrongBoxBacked(false)
+            }
         }
-        return try {
-            generator.init(spec.build())
-            generator.generateKey()
-        } catch (e: StrongBoxUnavailableException) {
-            // устройство без StrongBox — тот же ключ без него
-            generator.init(spec.setIsStrongBoxBacked(false).build())
-            generator.generateKey()
-        }
+        generator.init(spec.build())
+        return generator.generateKey()
     }
 
     private companion object {

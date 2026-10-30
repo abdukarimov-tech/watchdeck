@@ -46,7 +46,7 @@ object PinnedHttp {
 class RelayAdmin(private val baseUrl: String, private val adminToken: String, certPem: String = "") {
 
     private val http = PinnedHttp.client(certPem)
-    private val restBase = baseUrl.trimEnd('/')
+    private val restBase = baseUrl.trimEnd('/').removeSuffix("/ws/client")
         .replaceFirst("wss://", "https://")
         .replaceFirst("ws://", "http://")
 
@@ -86,10 +86,10 @@ class RelayAdmin(private val baseUrl: String, private val adminToken: String, ce
             val request = okhttp3.Request.Builder()
                 .url("$restBase/api/devices")
                 .header("Authorization", "Bearer $clientToken")
-                .post("""{"fcm_token":"$fcmToken","agent_id":"$agentId"}""".toJsonBody())
+                .post(org.json.JSONObject().put("fcm_token", fcmToken).put("agent_id", agentId).toString().toJsonBody())
                 .build()
             http.newCall(request).execute().use { resp ->
-                if (!resp.isSuccessful && resp.code != 404) {
+                if (!resp.isSuccessful) {
                     throw java.io.IOException("HTTP ${resp.code}")
                 }
             }

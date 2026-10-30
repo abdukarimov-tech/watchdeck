@@ -14,7 +14,7 @@ use tracing::{info, warn};
 
 use crate::db::Alert;
 use crate::pb::msg::Payload;
-use crate::pb::{EventAlert, HelloAck, Msg, Pong};
+use crate::pb::{EventAlert, EventKind, HelloAck, Msg, Pong};
 use crate::state::AppState;
 
 /// Если от пира нет ни одного сообщения за это время — считаем соединение
@@ -127,7 +127,56 @@ async fn agent_socket(st: AppState, agent_id: String, socket: WebSocket) {
                     payload: Some(Payload::Pong(Pong { seq: ping.seq })),
                 }));
             }
+            Some(Payload::Metrics(metrics)) => {
+                match st
+                    .db
+                    .observe_metrics(&agent_id, &metrics, crate::db::now_unix() as i64)
+                {
+                    Ok(events) => publish_monitor_events(&st, &agent_id, events),
+                    Err(e) => warn!(error=%e, "metrics history failed"),
+                }
+                st.forward_to_clients(
+                    &agent_id,
+                    Msg {
+                        id: msg.id,
+                        target: String::new(),
+                        payload: Some(Payload::Metrics(metrics)),
+                    },
+                );
+            }
+            Some(Payload::ContainerList(list)) => {
+                match st
+                    .db
+                    .observe_containers(&agent_id, &list, crate::db::now_unix() as i64)
+                {
+                    Ok(events) => publish_monitor_events(&st, &agent_id, events),
+                    Err(e) => warn!(error=%e, "health tracking failed"),
+                }
+                st.forward_to_clients(
+                    &agent_id,
+                    Msg {
+                        id: msg.id,
+                        target: String::new(),
+                        payload: Some(Payload::ContainerList(list)),
+                    },
+                );
+            }
             Some(Payload::EventAlert(mut ev)) => {
+                match st
+                    .db
+                    .observe_event(&agent_id, &ev, crate::db::now_unix() as i64)
+                {
+                    Ok(events) => publish_monitor_events(&st, &agent_id, events),
+                    Err(e) => warn!(error=%e,"incident tracking failed"),
+                }
+                let notify = st
+                    .db
+                    .should_notify(
+                        &agent_id,
+                        &format!("{}:{}", ev.kind, ev.container_id),
+                        crate::db::now_unix() as i64,
+                    )
+                    .unwrap_or(false);
                 let kind_name = crate::pb::EventKind::try_from(ev.kind)
                     .map(|k| k.as_str_name())
                     .unwrap_or("EVENT_UNKNOWN");
@@ -158,14 +207,10 @@ async fn agent_socket(st: AppState, agent_id: String, socket: WebSocket) {
                 let st2 = st.clone();
                 let agent = agent_id.clone();
                 tokio::spawn(async move {
-                    st2.fcm
-                        .push_container_alert(
-                            &st2.db.device_tokens(&agent).unwrap_or_default(),
-                            &agent,
-                            &alert.container_name,
-                            &alert.message,
-                            kind_name,
-                        )
+                    if !notify {
+                        return;
+                    }
+                    st2.push_alert(&agent, &alert.container_name, &alert.message, kind_name)
                         .await;
                 });
             }
@@ -205,6 +250,20 @@ fn notify_event(
     message: &str,
     container: Option<&str>,
 ) {
+    let event = EventAlert {
+        kind: kind as i32,
+        container_id: String::new(),
+        container_name: container.unwrap_or_default().into(),
+        at_unix: crate::db::now_unix() as i64,
+        message: message.into(),
+    };
+    if let Err(e) = st.db.observe_event(agent_id, &event, event.at_unix) {
+        warn!(error=%e,"server incident tracking failed");
+    }
+    let notify = st
+        .db
+        .should_notify(agent_id, kind.as_str_name(), event.at_unix)
+        .unwrap_or(false);
     let alert = Alert {
         agent_id: agent_id.to_owned(),
         kind: kind.as_str_name().into(),
@@ -233,14 +292,10 @@ fn notify_event(
     let agent = agent_id.to_owned();
     let msg = message.to_owned();
     tokio::spawn(async move {
-        st2.fcm
-            .push_container_alert(
-                &st2.db.device_tokens(&agent).unwrap_or_default(),
-                &agent,
-                &agent,
-                &msg,
-                kind.as_str_name(),
-            )
+        if !notify {
+            return;
+        }
+        st2.push_alert(&agent, &agent, &msg, kind.as_str_name())
             .await;
     });
 }
@@ -287,6 +342,12 @@ async fn client_socket(st: AppState, filter: Option<String>, socket: WebSocket) 
             "CONTAINER_DIED" => crate::pb::EventKind::ContainerDied,
             "CONTAINER_STARTED" => crate::pb::EventKind::ContainerStarted,
             "OOM" => crate::pb::EventKind::Oom,
+            "SERVER_OFFLINE" => crate::pb::EventKind::ServerOffline,
+            "SERVER_ONLINE" => crate::pb::EventKind::ServerOnline,
+            "RESOURCE_HIGH" => crate::pb::EventKind::ResourceHigh,
+            "RESOURCE_RECOVERED" => crate::pb::EventKind::ResourceRecovered,
+            "CONTAINER_UNHEALTHY" => crate::pb::EventKind::ContainerUnhealthy,
+            "RESTART_LOOP" => crate::pb::EventKind::RestartLoop,
             _ => crate::pb::EventKind::EventUnknown,
         };
         let msg = Msg {
@@ -311,6 +372,8 @@ async fn client_socket(st: AppState, filter: Option<String>, socket: WebSocket) 
         }
     });
 
+    let mut log_requests =
+        std::collections::HashMap::<String, (String, crate::pb::LogsRequest)>::new();
     loop {
         let next = timeout(IDLE_TIMEOUT, stream.next()).await;
         let Ok(Some(Ok(msg))) = next else {
@@ -327,11 +390,66 @@ async fn client_socket(st: AppState, filter: Option<String>, socket: WebSocket) 
         if matches!(decoded.payload, Some(Payload::Ping(_))) {
             continue;
         }
+        if let Some(Payload::LogsRequest(req)) = &decoded.payload {
+            if req.cancel {
+                log_requests.remove(&req.stream_id);
+            } else {
+                log_requests.insert(req.stream_id.clone(), (decoded.target.clone(), req.clone()));
+            }
+        }
         if let Err(e) = st.forward_to_agent(Some(&decoded.target), bytes.as_ref()) {
             warn!(target = %decoded.target, error = e, "forward to agent failed");
         }
     }
 
+    for (_, (target, mut request)) in log_requests {
+        request.cancel = true;
+        let msg = Msg {
+            id: 0,
+            target: target.clone(),
+            payload: Some(Payload::LogsRequest(request)),
+        };
+        let _ = st.forward_to_agent(Some(&target), &encode_msg(&msg));
+    }
     st.unregister_client(client_id);
     writer.abort();
+}
+
+fn publish_monitor_events(st: &AppState, agent: &str, events: Vec<EventAlert>) {
+    for ev in events {
+        let kind = EventKind::try_from(ev.kind).unwrap_or(EventKind::EventUnknown);
+        if let Err(e) = st.db.insert_alert(&Alert {
+            agent_id: agent.into(),
+            kind: kind.as_str_name().into(),
+            container_name: ev.container_name.clone(),
+            message: ev.message.clone(),
+            at_unix: ev.at_unix,
+        }) {
+            warn!(error=%e,"monitoring event storage failed");
+        }
+        let notify = st
+            .db
+            .should_notify(
+                agent,
+                &format!("{}:{}:{}", ev.kind, ev.container_id, ev.container_name),
+                ev.at_unix,
+            )
+            .unwrap_or(false);
+        st.forward_to_clients(
+            agent,
+            Msg {
+                id: 0,
+                target: String::new(),
+                payload: Some(Payload::EventAlert(ev.clone())),
+            },
+        );
+        if notify {
+            let st = st.clone();
+            let agent = agent.to_owned();
+            tokio::spawn(async move {
+                st.push_alert(&agent, &ev.container_name, &ev.message, kind.as_str_name())
+                    .await;
+            });
+        }
+    }
 }

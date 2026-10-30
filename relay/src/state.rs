@@ -24,6 +24,7 @@ pub struct AppState {
     pub admin_token: String,
     pub db: Db,
     pub fcm: FcmSender,
+    pub apns: crate::apns::ApnsSender,
     inner: Arc<Inner>,
 }
 
@@ -47,12 +48,34 @@ impl AppState {
             admin_token,
             db,
             fcm,
+            apns: crate::apns::ApnsSender::from_env(),
             inner: Arc::new(Inner {
                 agents: DashMap::new(),
                 clients: DashMap::new(),
                 next_client_id: std::sync::atomic::AtomicU64::new(0),
             }),
         }
+    }
+
+    pub async fn push_alert(&self, agent: &str, container: &str, message: &str, kind: &str) {
+        self.fcm
+            .push_container_alert(
+                &self.db.device_tokens(agent).unwrap_or_default(),
+                agent,
+                container,
+                message,
+                kind,
+            )
+            .await;
+        self.apns
+            .push(
+                &self.db.apns_devices(agent).unwrap_or_default(),
+                agent,
+                container,
+                message,
+                kind,
+            )
+            .await;
     }
 
     pub fn register_agent(&self, agent_id: String, hostname: String, version: String, tx: OutTx) {

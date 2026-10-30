@@ -216,6 +216,21 @@ pub fn parse_containers_json(json: &str) -> Result<Vec<Container>> {
                 cpu_percent: 0.0,
                 mem_used: 0,
                 mem_limit: 0,
+                health: match v["Status"].as_str().unwrap_or_default() {
+                    s if s.contains("(unhealthy)") => "unhealthy",
+                    s if s.contains("(healthy)") => "healthy",
+                    s if s.contains("health: starting") => "starting",
+                    _ => "none",
+                }
+                .into(),
+                compose_project: v["Labels"]["com.docker.compose.project"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .into(),
+                compose_service: v["Labels"]["com.docker.compose.service"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .into(),
             }
         })
         .collect())
@@ -361,6 +376,15 @@ mod tests {
          "Names":["/batch-worker"],"Image":"worker:latest","State":"exited",
          "Status":"Exited (137) 2 minutes ago","Created":1729000100,"Ports":[]}
     ]"#;
+
+    #[test]
+    fn healthcheck_and_compose_metadata_are_distinct_from_running_state() {
+        let list = parse_containers_json(r#"[{"Id":"1234567890123456","Names":["/api"],"State":"running","Status":"Up 1 minute (unhealthy)","Labels":{"com.docker.compose.project":"prod","com.docker.compose.service":"api"}}]"#).unwrap();
+        assert_eq!(list[0].state, ContainerState::Running as i32);
+        assert_eq!(list[0].health, "unhealthy");
+        assert_eq!(list[0].compose_project, "prod");
+        assert_eq!(list[0].compose_service, "api");
+    }
 
     #[test]
     fn parse_containers() {

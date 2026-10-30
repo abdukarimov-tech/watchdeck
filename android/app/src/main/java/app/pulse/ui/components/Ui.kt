@@ -11,6 +11,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.res.stringResource
+import app.pulse.R
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -28,7 +38,7 @@ import app.pulse.ui.theme.PulseWarn
 
 /** Цвет нагрузки по доле 0..1: норма → предупреждение → критично. */
 fun loadColor(fraction: Float): Color = when {
-    fraction < 0.60f -> PulseSuccess
+    fraction < 0.60f -> PulseAccent
     fraction < 0.85f -> PulseWarn
     else -> PulseError
 }
@@ -113,4 +123,30 @@ fun BrandOrb(modifier: Modifier = Modifier) {
             shape = CircleShape,
         ),
     )
+}
+
+/** Последние реальные значения за время нахождения на экране, шкала 0–100%. */
+@Composable
+fun MetricSparkline(value: Float, modifier: Modifier = Modifier) {
+    var samples by remember { mutableStateOf(emptyList<Float>()) }
+    LaunchedEffect(value) {
+        if (value.isFinite()) samples = (samples + value.coerceIn(0f, 1f)).takeLast(30)
+    }
+    val color = MaterialTheme.colorScheme.primary
+    val description = stringResource(R.string.metric_session)
+    Canvas(modifier.semantics { contentDescription = description }) {
+        val inset = 3.dp.toPx()
+        val h = (size.height - inset * 2).coerceAtLeast(0f)
+        drawLine(color.copy(alpha = 0.1f), Offset(0f, size.height - inset),
+            Offset(size.width, size.height - inset), 1.dp.toPx())
+        if (samples.size < 2) return@Canvas
+        val path = Path()
+        samples.forEachIndexed { index, sample ->
+            val x = index.toFloat() / (samples.size - 1) * size.width
+            val y = inset + (1f - sample) * h
+            if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        }
+        drawPath(path, color, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round))
+        drawCircle(color, 3.dp.toPx(), Offset(size.width, inset + (1f - samples.last()) * h))
+    }
 }

@@ -13,6 +13,10 @@ use crate::ws::{agent_ws, client_ws};
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
+        .route("/api/incidents", get(incidents))
+        .route("/api/agent-ids", get(agent_ids))
+        .route("/api/metrics", get(metrics_history))
+        .route("/api/alert-policy", get(get_policy).put(put_policy))
         .route("/ws/agent", get(agent_ws))
         .route("/ws/client", get(client_ws))
         .route("/api/agents", get(list_agents))
@@ -159,7 +163,12 @@ async fn recent_alerts(
 
 #[derive(Deserialize)]
 struct RegisterDeviceReq {
+    #[serde(default)]
     fcm_token: String,
+    #[serde(default)]
+    apns_token: String,
+    #[serde(default)]
+    sandbox: bool,
     agent_id: String,
 }
 
@@ -169,9 +178,29 @@ async fn register_device(
     Json(req): Json<RegisterDeviceReq>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     require_role(&st, &headers, "client").map_err(|(code, msg)| (code, msg.into()))?;
-    st.db
-        .add_device(&req.fcm_token, &req.agent_id)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    if req.agent_id.trim().is_empty() || req.fcm_token.is_empty() == req.apns_token.is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "agent_id and exactly one push token required".into(),
+        ));
+    }
+    if !req.apns_token.is_empty() {
+        if !(32..=512).contains(&req.apns_token.len())
+            || !req.apns_token.bytes().all(|b| b.is_ascii_hexdigit())
+        {
+            return Err((StatusCode::BAD_REQUEST, "invalid APNs token".into()));
+        }
+        st.db
+            .add_apns_device(&req.apns_token, &req.agent_id, req.sandbox)
+            .map_err(internal_error)?;
+    } else {
+        if req.fcm_token.len() > 4096 {
+            return Err((StatusCode::BAD_REQUEST, "invalid FCM token".into()));
+        }
+        st.db
+            .add_device(&req.fcm_token, &req.agent_id)
+            .map_err(internal_error)?;
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -219,4 +248,99 @@ async fn revoke_token(
         .revoke_token(req.id)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Deserialize)]
+struct MonitorQuery {
+    #[serde(default)]
+    agent_id: String,
+    #[serde(default = "default_hours")]
+    hours: i64,
+}
+fn default_hours() -> i64 {
+    24
+}
+async fn incidents(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    axum::extract::Query(q): axum::extract::Query<MonitorQuery>,
+) -> Result<Json<Vec<crate::monitoring::Incident>>, (StatusCode, String)> {
+    require_role(&st, &headers, "client").map_err(|(c, m)| (c, m.into()))?;
+    st.db
+        .incidents(&q.agent_id)
+        .map(Json)
+        .map_err(internal_error)
+}
+async fn metrics_history(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    axum::extract::Query(q): axum::extract::Query<MonitorQuery>,
+) -> Result<Json<Vec<crate::monitoring::MetricPoint>>, (StatusCode, String)> {
+    require_role(&st, &headers, "client").map_err(|(c, m)| (c, m.into()))?;
+    if q.agent_id.is_empty() || !matches!(q.hours, 1 | 24 | 168) {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "agent_id required; hours must be 1,24,168".into(),
+        ));
+    }
+    st.db
+        .metric_history(&q.agent_id, q.hours, crate::db::now_unix() as i64)
+        .map(Json)
+        .map_err(internal_error)
+}
+async fn get_policy(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    axum::extract::Query(q): axum::extract::Query<MonitorQuery>,
+) -> Result<Json<crate::monitoring::AlertPolicy>, (StatusCode, String)> {
+    require_role(&st, &headers, "client").map_err(|(c, m)| (c, m.into()))?;
+    if q.agent_id.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "agent_id required".into()));
+    }
+    st.db
+        .alert_policy(&q.agent_id)
+        .map(Json)
+        .map_err(internal_error)
+}
+async fn put_policy(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    axum::extract::Query(q): axum::extract::Query<MonitorQuery>,
+    Json(p): Json<crate::monitoring::AlertPolicy>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    require_role(&st, &headers, "client").map_err(|(c, m)| (c, m.into()))?;
+    if q.agent_id.is_empty() || !p.valid() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "invalid agent_id or alert policy".into(),
+        ));
+    }
+    st.db
+        .save_alert_policy(&q.agent_id, &p)
+        .map_err(internal_error)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+fn internal_error(e: anyhow::Error) -> (StatusCode, String) {
+    tracing::error!(error=%e,"monitoring database error");
+    (StatusCode::INTERNAL_SERVER_ERROR, "database error".into())
+}
+
+async fn agent_ids(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<String>>, (StatusCode, String)> {
+    require_role(&st, &headers, "client").map_err(|(c, m)| (c, m.into()))?;
+    let conn = st.db.conn.lock().unwrap();
+    let mut stmt = conn
+        .prepare(
+            "SELECT DISTINCT label FROM tokens WHERE role='agent' AND revoked=0 ORDER BY label",
+        )
+        .map_err(|e| internal_error(e.into()))?;
+    let rows = stmt
+        .query_map([], |r| r.get::<_, String>(0))
+        .map_err(|e| internal_error(e.into()))?;
+    let ids = rows
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(|e| internal_error(e.into()))?;
+    Ok(Json(ids))
 }

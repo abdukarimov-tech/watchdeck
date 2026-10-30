@@ -115,6 +115,12 @@ push + история), приложение показывает локальн
 
 Без этих шагов релей работает с FCM в режиме заглушки (пуш логируется).
 
+## Monitoring features
+
+Incident center, persistent metric history, configurable alert policies, Docker health/Compose
+metadata, searchable/exportable logs, saved SSH diagnostics and Android/iOS home-screen widgets
+are documented in [RELEASE_FEATURES.md](RELEASE_FEATURES.md).
+
 ## Roadmap
 
 - [ ] E2E-шифрование payload поверх TLS (сейчас — токены + TLS)

@@ -35,8 +35,10 @@ import app.pulse.data.DiskUi
 import app.pulse.data.MetricsUi
 import app.pulse.data.formatBytes
 import app.pulse.data.formatUptime
-import app.pulse.ui.components.RingGauge
 import app.pulse.ui.components.loadColor
+import app.pulse.ui.components.MetricSparkline
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.RoundedCornerShape
 import app.pulse.ui.theme.MetricValueStyle
 import app.pulse.ui.theme.PulseSuccess
 import java.util.Locale
@@ -56,7 +58,7 @@ fun DashboardScreen(metrics: MetricsUi?) {
         return
     }
     val cpuFraction = (metrics.cpuPercent / 100.0).toFloat()
-    val memFraction = metrics.memUsedBytes.toFloat() / metrics.memTotalBytes.toFloat()
+    val memFraction = metrics.memUsedBytes.toFloat() / metrics.memTotalBytes.coerceAtLeast(1).toFloat()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -96,27 +98,33 @@ internal fun GaugeCard(
 ) {
     Card(
         modifier = modifier,
+        shape = RoundedCornerShape(22.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
     ) {
         Column(
             Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+            horizontalAlignment = Alignment.Start,
         ) {
-            RingGauge(progress = fraction, modifier = Modifier.size(92.dp)) {
-                Text(
-                    value,
-                    style = MetricValueStyle.copy(fontSize = 20.sp),
-                    color = loadColor(fraction),
-                )
-            }
+            Text(title, style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(8.dp))
+            Text(value, style = MetricValueStyle.copy(fontSize = 32.sp))
+            MetricSparkline(fraction, Modifier.fillMaxWidth().height(48.dp))
+            Text(stringResource(R.string.metric_session), style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(12.dp))
-            Text(
-                title,
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            LinearProgressIndicator(
+                progress = { fraction.coerceIn(0f, 1f) },
+                color = loadColor(fraction),
+                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                gapSize = 0.dp,
+                drawStopIndicator = {},
+                modifier = Modifier.fillMaxWidth().height(4.dp),
             )
+            Spacer(Modifier.height(10.dp))
             Text(
                 caption,
                 style = MaterialTheme.typography.bodySmall,
@@ -157,7 +165,7 @@ private fun RateRow(icon: androidx.compose.ui.graphics.vector.ImageVector, tint:
 
 @Composable
 internal fun DiskCard(disk: DiskUi) {
-    val fraction = disk.usedBytes.toFloat() / disk.totalBytes.toFloat()
+    val fraction = disk.usedBytes.toFloat() / disk.totalBytes.coerceAtLeast(1).toFloat()
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
         Column(
             Modifier

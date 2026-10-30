@@ -4,15 +4,19 @@ import PulseCore
 struct ServerDetailsScreen: View {
     @EnvironmentObject var model: AppModel
     let serverId: String
+    var initialAgentId: String? = nil
+    var initialContainerId: String? = nil
 
     enum Tab: String, CaseIterable {
-        case dashboard, containers, logs, terminal
+        case dashboard, containers, logs, terminal, history, rules
         var title: LocalizedStringKey {
             switch self {
             case .dashboard: return "tab_dashboard"
             case .containers: return "tab_containers"
             case .logs: return "tab_logs"
             case .terminal: return "details_tab_terminal"
+            case .history: return "history_title"
+            case .rules: return "rules_title"
             }
         }
     }
@@ -20,6 +24,7 @@ struct ServerDetailsScreen: View {
     @State private var tab: Tab = .dashboard
     @State private var showRemoveConfirm = false
     @State private var restartTarget: Container?
+    @State private var logsContainerId: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -27,23 +32,36 @@ struct ServerDetailsScreen: View {
             if agents.count > 1 {
                 agentChips
             }
-            Picker("", selection: $tab) {
+            ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
                 ForEach(Tab.allCases, id: \.self) { t in
-                    Text(t.title).tag(t)
+                    Button { tab = t } label: {
+                        Text(t.title).font(.subheadline).lineLimit(1)
+                            .padding(.horizontal, 14).padding(.vertical, 10)
+                            .background(tab == t ? PulseTheme.accent.opacity(0.18) : PulseTheme.surface,
+                                        in: RoundedRectangle(cornerRadius: 12))
+                            .foregroundStyle(tab == t ? PulseTheme.accent : .secondary)
+                    }.accessibilityAddTraits(tab == t ? .isSelected : [])
                 }
+            }.padding(.horizontal, 16)
             }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 16)
             .padding(.bottom, 8)
 
             switch tab {
-            case .dashboard: DashboardView(metrics: metrics, agents: agents)
+            case .dashboard: DashboardView(metrics: metrics, agents: agents).id(selectedAgent)
             case .containers: containersTab
-            case .logs: LogsView()
+            case .logs: LogsView(serverId: serverId, initialContainerId: logsContainerId ?? (initialAgentId == selectedAgent ? initialContainerId : nil)).id(selectedAgent)
             case .terminal: TerminalView(server: server)
+            case .history: HistoryView(server: server, agent: selectedAgent)
+            case .rules: AlertRulesView(server: server, agent: selectedAgent)
             }
         }
-        .background(Color(uiColor: .systemGroupedBackground))
+        .onChange(of: selectedAgent) { _, _ in logsContainerId = nil }
+        .onAppear {
+            if let initialAgentId { model.selectedAgentByServer[serverId] = initialAgentId }
+            if initialContainerId != nil { tab = .logs }
+        }
+        .background(PulseTheme.background)
         .navigationTitle(server.label)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -79,7 +97,7 @@ struct ServerDetailsScreen: View {
                 title: Text(String(format: NSLocalizedString("containers_restart_title", comment: ""), container.name)),
                 message: Text("containers_restart_body"),
                 primaryButton: .destructive(Text("containers_restart_confirm")) {
-                    model.performContainerAction(containerId: container.id, kind: .restart)
+                    model.performContainerAction(serverId: serverId, containerId: container.id, kind: .restart)
                 },
                 secondaryButton: .cancel(Text("containers_cancel")))
         }
@@ -102,7 +120,8 @@ struct ServerDetailsScreen: View {
     }
 
     private var metrics: MetricsUi {
-        model.metrics(serverId: serverId)
+        guard let agent = selectedAgent, let report = model.metricsByServer[serverId]?[agent] else { return MetricsUi() }
+        return MetricsUi(from: report)
     }
 
     private var selectedAgent: String? {
@@ -172,28 +191,12 @@ struct ServerDetailsScreen: View {
     // MARK: - Containers tab
 
     private var containersTab: some View {
-        let list = model.containers(serverId: serverId, agentId: selectedAgent)
-        return ScrollView {
-            LazyVStack(spacing: 10) {
-                if list.isEmpty {
-                    Text(state == .connected ? "dashboard_loading" : "conn_offline")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .padding(.top, 40)
-                }
-                ForEach(list) { container in
-                    ContainerCard(
-                        container: container,
-                        onRestart: { restartTarget = container },
-                        onStart: {
-                            model.performContainerAction(containerId: container.id, kind: .start)
-                        })
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 24)
-        }
+        GroupedContainersView(containers: model.containers(serverId: serverId, agentId: selectedAgent),
+            onRestart: { restartTarget = $0 },
+            onStart: { model.performContainerAction(serverId: serverId, containerId: $0.id, kind: .start) },
+            onLogs: { logsContainerId = $0.id; tab = .logs })
     }
+
 }
 
 struct ContainerCard: View {
@@ -221,6 +224,9 @@ struct ContainerCard: View {
                 Spacer()
                 actionButtons
             }
+            if !container.composeService.isEmpty { Text(container.composeService).font(.caption2).foregroundStyle(.secondary) }
+            Text(LocalizedStringKey(healthKey(container.health))).font(.caption)
+                .foregroundStyle(container.health == "unhealthy" ? PulseTheme.error : .secondary)
             HStack(spacing: 6) {
                 StatusDot(color: PulseTheme.containerState(container.state), size: 7)
                 Text(container.status)
@@ -270,13 +276,13 @@ struct DashboardView: View {
                 HStack(spacing: 8) {
                     SectionCard {
                         VStack(spacing: 6) {
-                            RingGauge(title: "CPU",
+                            MetricPanel(title: "CPU",
                                       subtitle: coreText,
                                       percent: metrics.cpuPercent / 100)
                         }
                     }
                     SectionCard {
-                        RingGauge(title: NSLocalizedString("dashboard_memory", comment: ""),
+                        MetricPanel(title: NSLocalizedString("dashboard_memory", comment: ""),
                                   subtitle: "\(PulseFormat.bytes(metrics.memUsedBytes)) / \(PulseFormat.bytes(metrics.memTotalBytes))",
                                   percent: ramPercent)
                     }

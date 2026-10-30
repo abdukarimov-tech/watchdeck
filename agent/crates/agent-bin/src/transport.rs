@@ -295,6 +295,10 @@ async fn session(cfg: &Config) -> Result<()> {
                 if let Some(old) = log_streams.remove(&req.stream_id) {
                     old.cancel();
                 }
+                if req.cancel {
+                    continue;
+                }
+                log_streams.retain(|_, token| !token.is_cancelled());
                 let token = session_cancel.child_token();
                 log_streams.insert(req.stream_id.clone(), token.clone());
                 spawn_log_stream(tx.clone(), docker.clone(), req, token);
@@ -364,10 +368,12 @@ fn spawn_log_stream(
     tokio::spawn(async move {
         let stream_id = req.stream_id.clone();
         let container_id = req.container_id.clone();
-        let logs = match docker
-            .logs(&container_id, req.tail_lines.max(1), req.follow)
-            .await
-        {
+        let opening = docker.logs(&container_id, req.tail_lines.clamp(1, 2000), req.follow);
+        let result = tokio::select! {
+            _ = cancel.cancelled() => return,
+            result = opening => result,
+        };
+        let logs = match result {
             Ok(l) => l,
             Err(e) => {
                 warn!(error = %format!("{e:#}"), "logs request failed");
@@ -387,7 +393,8 @@ fn spawn_log_stream(
                 return;
             }
         };
-        forward_logs(tx, logs, container_id, stream_id, cancel).await;
+        forward_logs(tx, logs, container_id, stream_id, cancel.clone()).await;
+        cancel.cancel();
     });
 }
 

@@ -83,6 +83,9 @@ message Container {
   double cpu_percent = 7;
   uint64 mem_used = 8;
   uint64 mem_limit = 9;
+  string health = 10; // healthy | unhealthy | starting | none
+  string compose_project = 11;
+  string compose_service = 12;
 }
 
 enum ContainerState {
@@ -121,6 +124,7 @@ message LogsRequest {
   bool follow = 3;
   // идентификатор потока: позволяет клиенту отменить/заменить активный стрим
   string stream_id = 4;
+  bool cancel = 5; // отмена потока без создания нового
 }
 
 message LogsChunk {
@@ -153,6 +157,10 @@ enum EventKind {
   // релей заметил, что агент перестал отвечать / снова на связи
   SERVER_OFFLINE = 4;
   SERVER_ONLINE = 5;
+  RESOURCE_HIGH = 6;
+  RESOURCE_RECOVERED = 7;
+  CONTAINER_UNHEALTHY = 8;
+  RESTART_LOOP = 9;
 }
 
 message Ping {

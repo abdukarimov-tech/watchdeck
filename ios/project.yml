@@ -13,13 +13,16 @@ targets:
     platform: iOS
     sources:
       - path: WatchDeck
+      - path: Shared
     dependencies:
       - package: PulseCore
+      - target: WatchDeckWidgets
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.pulse
-        MARKETING_VERSION: "1.0.0"
-        CURRENT_PROJECT_VERSION: "1"
+        CODE_SIGN_ENTITLEMENTS: WatchDeck/WatchDeck.entitlements
+        MARKETING_VERSION: "1.1.0"
+        CURRENT_PROJECT_VERSION: "2"
         SWIFT_VERSION: "5.0"
         TARGETED_DEVICE_FAMILY: "1,2"
         CODE_SIGN_STYLE: Automatic
@@ -32,6 +35,44 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         SWIFT_STRICT_CONCURRENCY: minimal
+      configs:
+        Debug:
+          APS_ENVIRONMENT: development
+        Release:
+          APS_ENVIRONMENT: production
+    info:
+      path: WatchDeck/Info.plist
+      properties:
+        CFBundleURLTypes:
+          - CFBundleURLName: app.pulse
+            CFBundleURLSchemes: [watchdeck]
+  WatchDeckWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: WatchDeckWidgets
+      - path: Shared
+      - path: WatchDeck/Resources
+        includes:
+          - "**/*.strings"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.pulse.widgets
+        MARKETING_VERSION: "1.1.0"
+        CURRENT_PROJECT_VERSION: "2"
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: WatchDeckWidgets/WatchDeckWidgets.entitlements
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_NSExtension_NSExtensionPointIdentifier: com.apple.widgetkit-extension
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
+    info:
+      path: WatchDeckWidgets/Info.plist
+      properties:
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
 schemes:
   WatchDeck:
     build:

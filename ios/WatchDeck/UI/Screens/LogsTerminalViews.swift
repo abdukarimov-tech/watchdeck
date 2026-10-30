@@ -1,67 +1,78 @@
 import SwiftUI
 import PulseCore
+import UniformTypeIdentifiers
 
-/// Стриминг логов контейнера (темный терминальный список, фильтр All/Issues).
+struct LogExportDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.plainText] }
+    var text: String
+    init(text: String) { self.text = text }
+    init(configuration: ReadConfiguration) throws { text = String(decoding: configuration.file.regularFileContents ?? Data(), as: UTF8.self) }
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper { FileWrapper(regularFileWithContents: Data(text.utf8)) }
+}
+
 struct LogsView: View {
     @EnvironmentObject var model: AppModel
-
-    enum Filter: String, CaseIterable {
-        case all, issues
-    }
-
-    @State private var filter: Filter = .all
-    @State private var autoScroll = true
-
+    let serverId: String
+    var initialContainerId: String? = nil
+    @State private var selectedId = ""
+    @State private var filter = "ALL"
+    @State private var search = ""
+    @State private var paused = false
+    @State private var frozen: [LogLineUi] = []
+    @State private var exporting = false
+    @State private var exportText = ""
+    @State private var exportError: String?
+    private var agent: String? { model.selectedAgent(serverId: serverId) }
+    private var containers: [Container] { model.containers(serverId: serverId, agentId: agent) }
     private var filtered: [LogLineUi] {
-        guard filter == .issues else { return model.logLines }
-        return model.logLines.filter { $0.isStderr || $0.text.contains("ERROR") || $0.text.contains("WARN") }
+        (paused ? frozen : model.logLines).filter { line in
+            return (filter == "ALL" || line.level == filter)
+                && (search.isEmpty || line.text.localizedCaseInsensitiveContains(search))
+        }
     }
-
+    private var visibleText: String { filtered.map { "\(PulseFormat.clockTime($0.tsUnix)) \($0.text)" }.joined(separator: "\n") }
     var body: some View {
         VStack(spacing: 8) {
-            Picker("", selection: $filter) {
-                Text("logs_filter_all").tag(Filter.all)
-                Text("logs_filter_issues").tag(Filter.issues)
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 16)
-
-            if filtered.isEmpty {
-                Spacer()
-                Text("dashboard_loading")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                Spacer()
-            } else {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 0) {
-                            ForEach(filtered) { line in
-                                LogRow(line: line)
-                                    .id(line.id)
-                            }
-                        }
-                        .padding(.vertical, 8)
-                    }
-                    .background(PulseTheme.terminalBg,
-                                in: RoundedRectangle(cornerRadius: 12))
-                    .padding(.horizontal, 16)
-                    .onChange(of: model.logLines.count) { _, _ in
-                        guard autoScroll, let last = filtered.last else { return }
-                        proxy.scrollTo(last.id, anchor: .bottom)
-                    }
-                    .onTapGesture { autoScroll = true }
+            Menu {
+                ForEach(containers) { c in Button(c.name) { selectedId = c.id } }
+            } label: {
+                HStack { Text(containers.first(where: { $0.id == selectedId })?.name ?? NSLocalizedString("logs_choose", comment: "")); Spacer(); Image(systemName: "chevron.down") }
+            }.padding(.horizontal, 16)
+            TextField("logs_search", text: $search).textFieldStyle(.roundedBorder).padding(.horizontal, 16)
+            Picker("logs_filter_all", selection: $filter) {
+                Text("logs_filter_all").tag("ALL"); Text("ERROR").tag("ERROR"); Text("WARN").tag("WARN")
+            }.pickerStyle(.segmented).padding(.horizontal, 16)
+            HStack(spacing: 16) {
+                    Button(paused ? "logs_resume" : "logs_pause") { if !paused { frozen = model.logLines }; paused.toggle() }
+                    Button("logs_copy") { UIPasteboard.general.string = visibleText }.disabled(filtered.isEmpty)
+                    Button("logs_export") { exportText = visibleText; exporting = true }.disabled(filtered.isEmpty)
+            }.font(.caption).padding(.horizontal, 16)
+            Text(String(format: NSLocalizedString("logs_buffer", comment: ""), filtered.count)).font(.caption2).foregroundStyle(.secondary)
+            if let exportError { Text(exportError).font(.caption).foregroundStyle(PulseTheme.error) }
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 2) {
+                        if filtered.isEmpty { Text("logs_empty").font(.footnote).foregroundStyle(PulseTheme.logText).padding() }
+                        ForEach(filtered) { line in LogRow(line: line).id(line.id) }
+                    }.padding(.vertical, 8)
                 }
-                Spacer(minLength: 0)
-            }
+                .background(PulseTheme.terminalBg, in: RoundedRectangle(cornerRadius: 16))
+                .onChange(of: model.logLines.last?.id) { _, _ in
+                    if !paused, let last = filtered.last { proxy.scrollTo(last.id, anchor: .bottom) }
+                }
+            }.padding(.horizontal, 12)
         }
-        .task {
-            // автостарт стрима первого запущенного контейнера — как в Android
-            if let container = model.firstRunningContainer(),
-               let agentId = model.selectedAgent(serverId: model.activeId ?? "") {
-                model.requestLogs(agentId: agentId, containerId: container.id)
-            }
+        .fileExporter(isPresented: $exporting, document: LogExportDocument(text: exportText), contentType: .plainText, defaultFilename: "watchdeck-logs") { result in
+            if case .failure(let error) = result { exportError = error.localizedDescription }
         }
+        .task(id: containers.map(\.id).joined(separator: ":")) {
+            if selectedId.isEmpty { selectedId = initialContainerId ?? containers.first(where: { $0.state == .running })?.id ?? containers.first?.id ?? "" }
+        }
+        .task(id: "\(agent ?? ""):\(selectedId)") {
+            paused = false
+            if let agent, !selectedId.isEmpty { model.requestLogs(serverId: serverId, agentId: agent, containerId: selectedId) }
+        }
+        .onDisappear { model.stopLogs() }
     }
 }
 
@@ -72,12 +83,15 @@ struct TerminalView: View {
 
     @State private var output = ""
     @State private var command = ""
+    @State private var pendingCommand: String?
+    @AppStorage("diagnostic_commands") private var savedCommandsJSON = "[]"
     @State private var statusText: String?
     @State private var terminal: SSHTerminal?
     @State private var connectTask: Task<Void, Never>?
     @FocusState private var inputFocused: Bool
 
-    private let quickCommands = ["docker ps", "docker stats --no-stream", "df -h", "free -m", "uptime"]
+    private let quickCommands = ["docker ps", "docker stats --no-stream", "df -h", "free -m", "uptime", "ps -eo pid,comm,%cpu,%mem --sort=-%cpu | head -15", "systemctl --failed --no-pager"]
+    private var savedCommands: [String] { (try? JSONDecoder().decode([String].self, from: Data(savedCommandsJSON.utf8))) ?? [] }
     private static let maxOutputChars = 20_000
 
     var body: some View {
@@ -108,9 +122,9 @@ struct TerminalView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(quickCommands, id: \.self) { cmd in
+                    ForEach(quickCommands + savedCommands, id: \.self) { cmd in
                         Button(cmd) {
-                            send(cmd)
+                            pendingCommand = cmd
                         }
                         .font(.system(.caption, design: .monospaced))
                         .padding(.horizontal, 10)
@@ -122,6 +136,12 @@ struct TerminalView: View {
                 .padding(.horizontal, 16)
             }
 
+            if !command.isEmpty && command.count <= 1024 && !quickCommands.contains(command) && !savedCommands.contains(command) {
+                Button("diagnostic_save") {
+                    if !savedCommands.contains(command), let data = try? JSONEncoder().encode(Array((savedCommands + [command]).prefix(30))) { savedCommandsJSON = String(decoding: data, as: UTF8.self) }
+                }.font(.caption)
+            }
+            if !savedCommands.isEmpty { Button("diagnostic_clear") { savedCommandsJSON = "[]" }.font(.caption) }
             HStack(spacing: 8) {
                 TextField("terminal_placeholder", text: $command)
                     .textFieldStyle(.roundedBorder)
@@ -129,9 +149,9 @@ struct TerminalView: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .focused($inputFocused)
-                    .onSubmit { send(command) }
+                    .onSubmit { pendingCommand = command }
                 Button {
-                    send(command)
+                    pendingCommand = command
                 } label: {
                     Image(systemName: "paperplane.fill")
                 }
@@ -140,6 +160,12 @@ struct TerminalView: View {
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 12)
+        }
+        .alert("diagnostic_confirm", isPresented: Binding(get: { pendingCommand != nil }, set: { if !$0 { pendingCommand = nil } })) {
+            Button("diagnostic_run") { if let pendingCommand { send(pendingCommand) }; pendingCommand = nil }
+            Button("settings_cancel", role: .cancel) { pendingCommand = nil }
+        } message: {
+            Text("\(server.sshUser)@\(server.sshHost ?? server.endpoint.hostForLabel):\(server.sshPort)\n\n\(pendingCommand ?? "")")
         }
         .onAppear(perform: connect)
         .onDisappear(perform: disconnect)
@@ -155,7 +181,7 @@ struct TerminalView: View {
     private func connect() {
         guard !server.isDemo, let auth = server.sshAuth else { return }
         let endpoint = server.endpoint
-        let host = endpoint.hostForLabel
+        let host = server.sshHost ?? endpoint.hostForLabel
         let port = server.sshPort
         let user = server.sshUser
         let fp = server.sshFp

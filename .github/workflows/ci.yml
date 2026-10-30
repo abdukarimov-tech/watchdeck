@@ -42,6 +42,8 @@ jobs:
         working-directory: relay
       - run: cargo build --release
         working-directory: relay
+      - run: PULSE_TEST_RELAY_BIN=target/release/pulse-relay python3 tests/monitoring_e2e.py
+        working-directory: relay
 
   android:
     name: Android
@@ -55,7 +57,17 @@ jobs:
       # setup-android@v3 ломается с cmdline-tools 16.0 на раннере; SDK уже
       # предустановлен на ubuntu-latest — достаточно принять лицензии
       - run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
-      - run: gradle testDebugUnitTest
+      - run: ./gradlew testDebugUnitTest
         working-directory: android
-      - run: gradle assembleDebug
+      - run: ./gradlew assembleDebug lintDebug
         working-directory: android
+
+  ios:
+    name: iOS + WidgetKit
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift test --package-path ios/PulseCore
+      - run: brew install xcodegen
+      - run: xcodegen generate --spec ios/project.yml
+      - run: xcodebuild -project ios/WatchDeck.xcodeproj -scheme WatchDeck -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build

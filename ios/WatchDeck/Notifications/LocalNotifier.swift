@@ -1,6 +1,7 @@
 import Foundation
 import UserNotifications
 import PulseCore
+import UIKit
 
 /// Локальные уведомления: watchdog "релей недоступен" и алерты событий.
 /// (Push через FCM на iOS не работает — релей пока умеет только FCM; см. README.)
@@ -9,7 +10,9 @@ final class LocalNotifier: NSObject, UNUserNotificationCenterDelegate, @unchecke
 
     func bootstrap() {
         UNUserNotificationCenter.current().delegate = self
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+            if granted { DispatchQueue.main.async { UIApplication.shared.registerForRemoteNotifications() } }
+        }
     }
 
     func post(title: String, body: String, identifier: String) {

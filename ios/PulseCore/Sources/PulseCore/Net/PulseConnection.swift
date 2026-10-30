@@ -23,8 +23,11 @@ public protocol PulseRepository: AnyObject, Sendable {
     func shutdown()
     func performAction(agentId: String, containerId: String, kind: ContainerActionKind) async throws
     func requestLogs(agentId: String, containerId: String, streamId: String)
+    func stopLogs()
     func refreshAgents() async throws -> [AgentInfo]
 }
+
+public extension PulseRepository { func stopLogs() {} }
 
 /// Асинхронная обертка с таймаутом.
 func withTimeout<T: Sendable>(seconds: Double, _ operation: @escaping @Sendable () async throws -> T) async throws -> T {
@@ -51,6 +54,7 @@ public final class WsPulseRepository: PulseRepository, @unchecked Sendable {
     private var connectTask: Task<Void, Never>?
     private var refreshTask: Task<Void, Never>?
     private var pendingActions: [UInt64: CheckedContinuation<ContainerActionResult, Error>] = [:]
+    private var lastLogRequest: (String, LogsRequest)?
     private var nextMsgId: UInt64 = 1
     private var socketTask: URLSessionWebSocketTask?
     private var urlSession: URLSession?
@@ -113,22 +117,28 @@ public final class WsPulseRepository: PulseRepository, @unchecked Sendable {
     }
 
     private func sendAwaitingResult(_ msg: PulseMsg) async throws -> ContainerActionResult {
-        try await withCheckedThrowingContinuation { cont in
-            lock.lock()
-            guard !closed, let task = socketTask else {
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { cont in
+                lock.lock()
+                guard !Task.isCancelled else {
+                    lock.unlock()
+                    cont.resume(throwing: CancellationError())
+                    return
+                }
+                guard !closed, let task = socketTask else {
+                    lock.unlock()
+                    cont.resume(throwing: PulseError.offline)
+                    return
+                }
+                pendingActions[msg.id] = cont
                 lock.unlock()
-                cont.resume(throwing: PulseError.offline)
-                return
-            }
-            pendingActions[msg.id] = cont
-            lock.unlock()
-            Task { [weak self] in
-                do {
-                    try await task.send(.data(msg.encode()))
-                } catch {
-                    self?.failPending(msg.id, error)
+                Task { [weak self] in
+                    do { try await task.send(.data(msg.encode())) }
+                    catch { self?.failPending(msg.id, error) }
                 }
             }
+        } onCancel: {
+            self.failPending(msg.id, CancellationError())
         }
     }
 
@@ -140,13 +150,26 @@ public final class WsPulseRepository: PulseRepository, @unchecked Sendable {
     }
 
     public func requestLogs(agentId: String, containerId: String, streamId: String) {
-        let id = nextId()
-        let msg = PulseMsg(id: id, target: agentId, payload: .logsRequest(
-            LogsRequest(containerId: containerId, tailLines: 200, follow: true, streamId: streamId)))
+        stopLogs()
+        let request = LogsRequest(containerId: containerId, tailLines: 200, follow: true, streamId: streamId)
+        let msg = PulseMsg(id: nextId(), target: agentId, payload: .logsRequest(request))
         lock.lock()
+        lastLogRequest = (agentId, request)
         let task = socketTask
         lock.unlock()
         guard let task else { return }
+        Task { try? await task.send(.data(msg.encode())) }
+    }
+
+    public func stopLogs() {
+        lock.lock()
+        let previous = lastLogRequest
+        lastLogRequest = nil
+        let task = socketTask
+        lock.unlock()
+        guard var (agent, request) = previous, let task else { return }
+        request.cancel = true
+        let msg = PulseMsg(id: nextId(), target: agent, payload: .logsRequest(request))
         Task { try? await task.send(.data(msg.encode())) }
     }
 
@@ -201,6 +224,10 @@ public final class WsPulseRepository: PulseRepository, @unchecked Sendable {
 
                 attempt = 0
                 emit(.state(.connected))
+                let logsToResume = lock.withLock { lastLogRequest }
+                if let (agent, request) = logsToResume {
+                    try await task.send(.data(PulseMsg(id: nextId(), target: agent, payload: .logsRequest(request)).encode()))
+                }
 
                 pingTask = Task { [weak self] in await self?.pingLoop() }
                 try await receiveLoop(task)

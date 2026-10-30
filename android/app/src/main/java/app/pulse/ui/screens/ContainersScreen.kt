@@ -1,11 +1,16 @@
 package app.pulse.ui.screens
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -16,12 +21,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -37,6 +45,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import app.pulse.R
 import app.pulse.data.ContainerUi
+import app.pulse.data.formatBytes
+import androidx.compose.ui.text.style.TextOverflow
 import app.pulse.ui.components.StatusDot
 import app.pulse.ui.theme.PulseError
 import app.pulse.ui.theme.PulseSuccess
@@ -54,14 +64,36 @@ fun ContainersScreen(
     containers: List<ContainerUi>,
     onAction: (containerId: String, kind: String) -> Unit,
     canAct: Boolean = true,
+    onLogs: (String) -> Unit = {},
 ) {
-    LazyColumn(
-        modifier = Modifier.padding(top = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-    ) {
-        items(containers, key = { it.id }) { c ->
-            ContainerCard(c = c, canAct = canAct, onAction = onAction)
+    var search by remember { mutableStateOf("") }
+    var unhealthyOnly by remember { mutableStateOf(false) }
+    val visible = containers.filter { c ->
+        (!unhealthyOnly || c.health == "unhealthy") &&
+            listOf(c.name, c.image, c.composeProject, c.composeService).any { it.contains(search, true) }
+    }
+    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+        OutlinedTextField(value = search, onValueChange = { search = it },
+            label = { Text(stringResource(R.string.containers_search)) }, singleLine = true,
+            modifier = Modifier.fillMaxWidth())
+        FilterChip(selected = unhealthyOnly, onClick = { unhealthyOnly = !unhealthyOnly },
+            label = { Text(stringResource(R.string.health_unhealthy)) })
+        LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(vertical = 8.dp)) {
+            if (visible.isEmpty()) item { Text(stringResource(R.string.containers_empty)) }
+            visible.groupBy { it.composeProject }.toSortedMap().forEach { (project, group) ->
+                item(key = "project:$project") {
+                    Text(if (project.isEmpty()) stringResource(R.string.compose_standalone) else project,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                items(group, key = { it.id }) { c ->
+                    Column {
+                        ContainerCard(c = c, canAct = canAct, onAction = onAction)
+                        TextButton(onClick = { onLogs(c.id) }) { Text(stringResource(R.string.incident_logs)) }
+                    }
+                }
+            }
         }
     }
 }
@@ -78,6 +110,8 @@ internal fun ContainerCard(
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
     ) {
         Row(
             Modifier
@@ -85,8 +119,15 @@ internal fun ContainerCard(
                 .padding(start = 16.dp, top = 14.dp, bottom = 14.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            Box(Modifier.padding(end = 12.dp).size(38.dp)
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), RoundedCornerShape(12.dp)),
+                contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.Inventory2, contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+            }
             Column(Modifier.weight(1f)) {
-                Text(c.name, style = MaterialTheme.typography.titleMedium)
+                Text(c.name, style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
                     c.image,
                     style = MaterialTheme.typography.bodySmall,
@@ -94,7 +135,20 @@ internal fun ContainerCard(
                     fontFamily = FontFamily.Monospace,
                     maxLines = 1,
                 )
-                Spacer(Modifier.height(3.dp))
+                if (c.state == "RUNNING" && c.memLimitBytes > 0) {
+                    Text("${formatBytes(c.memUsedBytes)} / ${formatBytes(c.memLimitBytes)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                if (c.composeService.isNotEmpty()) Text(c.composeService, style = MaterialTheme.typography.labelSmall)
+                Text(stringResource(when (c.health) {
+                    "healthy" -> R.string.health_healthy
+                    "unhealthy" -> R.string.health_unhealthy
+                    "starting" -> R.string.health_starting
+                    else -> R.string.health_none
+                }), style = MaterialTheme.typography.labelSmall,
+                    color = if (c.health == "unhealthy") MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(6.dp))
                 Text(
                     c.status,
                     style = MaterialTheme.typography.bodySmall,
@@ -153,7 +207,7 @@ private fun ActionButton(
         onClick = onClick,
         shape = CircleShape,
         colors = IconButtonDefaults.filledIconButtonColors(containerColor = container, contentColor = tint),
-        modifier = Modifier.size(40.dp),
+        modifier = Modifier.size(44.dp),
     ) {
         Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(20.dp))
     }

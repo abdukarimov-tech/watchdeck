@@ -26,6 +26,10 @@ public enum EventKind: Int, Sendable, CaseIterable {
     case oom = 3
     case serverOffline = 4
     case serverOnline = 5
+    case resourceHigh = 6
+    case resourceRecovered = 7
+    case containerUnhealthy = 8
+    case restartLoop = 9
 
     /// Имена как в релеевской истории алертов (GET /api/alerts).
     public var wireName: String {
@@ -35,6 +39,10 @@ public enum EventKind: Int, Sendable, CaseIterable {
         case .oom: return "OOM"
         case .serverOffline: return "SERVER_OFFLINE"
         case .serverOnline: return "SERVER_ONLINE"
+        case .resourceHigh: return "RESOURCE_HIGH"
+        case .resourceRecovered: return "RESOURCE_RECOVERED"
+        case .containerUnhealthy: return "CONTAINER_UNHEALTHY"
+        case .restartLoop: return "RESTART_LOOP"
         case .unknown: return "EVENT_UNKNOWN"
         }
     }
@@ -46,6 +54,10 @@ public enum EventKind: Int, Sendable, CaseIterable {
         case "OOM": return .oom
         case "SERVER_OFFLINE": return .serverOffline
         case "SERVER_ONLINE": return .serverOnline
+        case "RESOURCE_HIGH": return .resourceHigh
+        case "RESOURCE_RECOVERED": return .resourceRecovered
+        case "CONTAINER_UNHEALTHY": return .containerUnhealthy
+        case "RESTART_LOOP": return .restartLoop
         default: return .unknown
         }
     }
@@ -253,6 +265,9 @@ public struct Container: Sendable, Equatable, Identifiable {
     public var cpuPercent: Double = 0
     public var memUsed: UInt64 = 0
     public var memLimit: UInt64 = 0
+    public var health = "none"
+    public var composeProject = ""
+    public var composeService = ""
 
     public init() {}
 
@@ -266,6 +281,9 @@ public struct Container: Sendable, Equatable, Identifiable {
         w.doubleField(7, cpuPercent)
         w.varintField(8, memUsed)
         w.varintField(9, memLimit)
+        w.stringField(10, health)
+        w.stringField(11, composeProject)
+        w.stringField(12, composeService)
     }
 
     public static func decode(_ r: inout ProtoReader) throws -> Container {
@@ -281,6 +299,9 @@ public struct Container: Sendable, Equatable, Identifiable {
             case (7, .fixed64): m.cpuPercent = try r.readDouble()
             case (8, .varint): m.memUsed = try r.readVarint()
             case (9, .varint): m.memLimit = try r.readVarint()
+            case (10, .lengthDelimited): m.health = try r.readString()
+            case (11, .lengthDelimited): m.composeProject = try r.readString()
+            case (12, .lengthDelimited): m.composeService = try r.readString()
             default: try r.skip(wire)
             }
         }
@@ -381,6 +402,7 @@ public struct LogsRequest: Sendable, Equatable {
     public var tailLines: UInt32 = 0
     public var follow = false
     public var streamId = ""
+    public var cancel = false
 
     public init() {}
     public init(containerId: String, tailLines: UInt32, follow: Bool, streamId: String) {
@@ -395,6 +417,7 @@ public struct LogsRequest: Sendable, Equatable {
         w.varintField(2, UInt64(tailLines))
         w.boolField(3, follow)
         w.stringField(4, streamId)
+        w.boolField(5, cancel)
     }
 
     public static func decode(_ r: inout ProtoReader) throws -> LogsRequest {
@@ -405,6 +428,7 @@ public struct LogsRequest: Sendable, Equatable {
             case (2, .varint): m.tailLines = UInt32(truncatingIfNeeded: try r.readVarint())
             case (3, .varint): m.follow = try r.readBool()
             case (4, .lengthDelimited): m.streamId = try r.readString()
+            case (5, .varint): m.cancel = try r.readBool()
             default: try r.skip(wire)
             }
         }
@@ -565,11 +589,20 @@ public struct PulseMsg: Sendable, Equatable {
         case .logsRequest(let m): w.messageField(107) { m.encode(into: &$0) }
         case .logsChunk(let m): w.messageField(108) { m.encode(into: &$0) }
         case .eventAlert(let m): w.messageField(109) { m.encode(into: &$0) }
-        case .ping(let seq): w.varintField(110, seq)
-        case .pong(let seq): w.varintField(111, seq)
+        case .ping(let seq): w.messageField(110) { $0.varintField(1, seq) }
+        case .pong(let seq): w.messageField(111) { $0.varintField(1, seq) }
         case nil: break
         }
         return Data(w.bytes)
+    }
+
+    private static func decodeSequence(_ r: inout ProtoReader) throws -> UInt64 {
+        var seq: UInt64 = 0
+        while let (field, wire) = try r.nextTag() {
+            if field == 1 && wire == .varint { seq = try r.readVarint() }
+            else { try r.skip(wire) }
+        }
+        return seq
     }
 
     public static func decode(_ data: Data) throws -> PulseMsg {
@@ -588,6 +621,8 @@ public struct PulseMsg: Sendable, Equatable {
             case (107, .lengthDelimited): var sub = try r.subReader(); m.payload = .logsRequest(try LogsRequest.decode(&sub))
             case (108, .lengthDelimited): var sub = try r.subReader(); m.payload = .logsChunk(try LogsChunk.decode(&sub))
             case (109, .lengthDelimited): var sub = try r.subReader(); m.payload = .eventAlert(try EventAlert.decode(&sub))
+            case (110, .lengthDelimited): var sub = try r.subReader(); m.payload = .ping(seq: try decodeSequence(&sub))
+            case (111, .lengthDelimited): var sub = try r.subReader(); m.payload = .pong(seq: try decodeSequence(&sub))
             case (110, .varint): m.payload = .ping(seq: try r.readVarint())
             case (111, .varint): m.payload = .pong(seq: try r.readVarint())
             default: try r.skip(wire)

@@ -59,6 +59,9 @@ fun pulse.v1.Container.toUi(): ContainerUi = ContainerUi(
     cpuPercent = cpuPercent,
     memUsedBytes = memUsed,
     memLimitBytes = memLimit,
+    health = health.ifEmpty { "none" },
+    composeProject = composeProject,
+    composeService = composeService,
 )
 
 fun pulse.v1.LogLine.toUi(): LogLineUi = LogLineUi(tsUnix, stderr, text)
@@ -85,6 +88,12 @@ fun kindLabel(kind: EventKind): String = when (kind) {
     EventKind.CONTAINER_DIED -> "CONTAINER_DIED"
     EventKind.CONTAINER_STARTED -> "CONTAINER_STARTED"
     EventKind.OOM -> "OOM"
+    EventKind.SERVER_OFFLINE -> "SERVER_OFFLINE"
+    EventKind.SERVER_ONLINE -> "SERVER_ONLINE"
+    EventKind.RESOURCE_HIGH -> "RESOURCE_HIGH"
+    EventKind.RESOURCE_RECOVERED -> "RESOURCE_RECOVERED"
+    EventKind.CONTAINER_UNHEALTHY -> "CONTAINER_UNHEALTHY"
+    EventKind.RESTART_LOOP -> "RESTART_LOOP"
     else -> "EVENT_UNKNOWN"
 }
 
@@ -140,6 +149,9 @@ class PulseConnection(
     private val msgId = AtomicLong(1)
     private var webSocket: WebSocket? = null
     private val activeLogStream = MutableStateFlow("")
+    @Volatile private var desiredLogRequest: Msg? = null
+    private var logAgentId = ""
+    private var logContainerId = ""
     private val pendingActions = ConcurrentHashMap<Long, CompletableDeferred<Result<Unit>>>()
     private val reopen = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     private var backoffMs = 2_000L
@@ -157,8 +169,10 @@ class PulseConnection(
 
     private val listener = object : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) {
+            android.util.Log.i("PulseConnection", "Relay connected: ${java.net.URI(normalizedBase).host}")
             backoffMs = 2_000L
             connectionState.value = ConnState.CONNECTED
+            desiredLogRequest?.let { webSocket.send(it.toByteArray().toByteString()) }
             scope.launch { refreshAgents() }
         }
 
@@ -168,6 +182,7 @@ class PulseConnection(
         }
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+            android.util.Log.w("PulseConnection", "Relay connection failed: ${java.net.URI(normalizedBase).host}, HTTP ${response?.code}, ${t.javaClass.simpleName}")
             reopen.tryEmit(Unit)
         }
 
@@ -244,7 +259,10 @@ class PulseConnection(
         withContext(Dispatchers.IO) {
             runCatching {
                 client.newCall(request).execute().use { resp ->
-                    if (!resp.isSuccessful) return@use
+                    if (!resp.isSuccessful) {
+                        android.util.Log.w("PulseConnection", "Agent discovery failed: ${java.net.URI(normalizedBase).host}, HTTP ${resp.code}")
+                        return@use
+                    }
                     val arr = JSONArray(resp.body?.string() ?: "[]")
                     val parsed = mutableMapOf<String, String>()
                     val vers = mutableMapOf<String, String>()
@@ -255,8 +273,9 @@ class PulseConnection(
                     }
                     agents.value = parsed
                     versions.value = vers
+                    android.util.Log.i("PulseConnection", "Agent discovery: ${java.net.URI(normalizedBase).host}, online=${parsed.size}")
                 }
-            }
+            }.onFailure { android.util.Log.w("PulseConnection", "Agent discovery failed: ${java.net.URI(normalizedBase).host}, ${it.javaClass.simpleName}") }
         }
     }
 
@@ -289,12 +308,21 @@ class PulseConnection(
         }
     }
 
+    fun stopLogs() {
+        if (activeLogStream.value.isNotEmpty()) {
+            sendMsg(Msg.newBuilder().setTarget(logAgentId).setLogsRequest(
+                LogsRequest.newBuilder().setContainerId(logContainerId).setStreamId(activeLogStream.value).setCancel(true)).build())
+        }
+        activeLogStream.value = ""
+        desiredLogRequest = null
+    }
     fun requestLogs(agentId: String, containerId: String) {
+        stopLogs()
+        logAgentId = agentId; logContainerId = containerId
         val streamId = java.util.UUID.randomUUID().toString()
         activeLogStream.value = streamId
         logLines.value = emptyList()
-        sendMsg(
-            Msg.newBuilder()
+        val request = Msg.newBuilder()
                 .setTarget(agentId)
                 .setLogsRequest(
                     LogsRequest.newBuilder()
@@ -303,11 +331,13 @@ class PulseConnection(
                         .setFollow(true)
                         .setStreamId(streamId),
                 )
-                .build(),
-        )
+                .build()
+        desiredLogRequest = request
+        sendMsg(request)
     }
 
     fun close() {
+        stopLogs()
         webSocket?.close(1000, "client closed")
         client.dispatcher.executorService.shutdown()
     }

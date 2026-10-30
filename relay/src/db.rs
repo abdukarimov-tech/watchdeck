@@ -8,7 +8,7 @@ use sha2::{Digest, Sha256};
 
 #[derive(Clone)]
 pub struct Db {
-    conn: std::sync::Arc<Mutex<rusqlite::Connection>>,
+    pub(crate) conn: std::sync::Arc<Mutex<rusqlite::Connection>>,
 }
 
 pub struct Token {
@@ -81,6 +81,7 @@ impl Db {
                 created_unix INTEGER NOT NULL
             );",
         )?;
+        crate::monitoring::migrate(&conn)?;
         // миграция: колонка revoked для отзыва токенов
         let _ =
             conn.execute_batch("ALTER TABLE tokens ADD COLUMN revoked INTEGER NOT NULL DEFAULT 0");
@@ -190,16 +191,16 @@ impl Db {
 
     pub fn add_device(&self, fcm_token: &str, agent_id: &str) -> Result<()> {
         self.conn.lock().unwrap().execute(
-            "INSERT INTO devices (fcm_token, agent_id, created_unix) VALUES (?1, ?2, ?3)
-             ON CONFLICT(fcm_token) DO UPDATE SET agent_id = excluded.agent_id",
-            rusqlite::params![fcm_token, agent_id, now_unix() as i64],
+            "INSERT OR IGNORE INTO device_subscriptions (fcm_token, agent_id) VALUES (?1, ?2)",
+            rusqlite::params![fcm_token, agent_id],
         )?;
         Ok(())
     }
 
     pub fn device_tokens(&self, agent_id: &str) -> Result<Vec<String>> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare("SELECT fcm_token FROM devices WHERE agent_id = ?1")?;
+        let mut stmt =
+            conn.prepare("SELECT fcm_token FROM device_subscriptions WHERE agent_id = ?1")?;
         let rows = stmt.query_map([agent_id], |r| r.get(0))?;
         Ok(rows.collect::<std::result::Result<Vec<_>, _>>()?)
     }

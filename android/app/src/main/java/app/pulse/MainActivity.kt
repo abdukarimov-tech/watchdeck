@@ -35,6 +35,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import app.pulse.ui.screens.OnboardingScreen
 import app.pulse.ui.screens.RelayManageScreen
 import app.pulse.ui.screens.ServerDetailsScreen
+import app.pulse.ui.screens.IncidentCenter
 import app.pulse.ui.screens.ServerListScreen
 import app.pulse.ui.screens.SettingsScreen
 import app.pulse.ui.theme.PulseTheme
@@ -93,9 +94,13 @@ class MainActivity : FragmentActivity() {
                 val servers by vm.servers.collectAsState()
 
                 var showOnboarding by remember { mutableStateOf(false) }
+                var showIncidents by remember { mutableStateOf(false) }
+                var returnToIncidents by remember { mutableStateOf(false) }
+                var logAgent by remember { mutableStateOf<String?>(null) }
+                var logContainer by remember { mutableStateOf<String?>(null) }
                 var showSettings by remember { mutableStateOf(false) }
                 var showRelayManage by remember { mutableStateOf(false) }
-                var detailsServerId by remember { mutableStateOf<String?>(null) }
+                var detailsServerId by remember { mutableStateOf(intent.getStringExtra("server_id")?.takeIf { requested -> servers.any { it.id == requested } }) }
 
                 val lockEnabled = remember {
                     getSharedPreferences("pulse_settings", Context.MODE_PRIVATE).getBoolean("app_lock", false)
@@ -105,6 +110,10 @@ class MainActivity : FragmentActivity() {
                 when {
                     locked -> LockScreen(onUnlock = { tryUnlock() })
 
+                    showIncidents -> IncidentCenter(servers, onBack = { showIncidents = false }, onLogs = { server, agent, container ->
+                        vm.selectServer(server)
+                        logAgent = agent; logContainer = container; detailsServerId = server; showIncidents = false; returnToIncidents = true
+                    })
                     showRelayManage -> RelayManageScreen(vm = vm, onBack = { showRelayManage = false })
 
                     showSettings -> SettingsScreen(
@@ -126,7 +135,8 @@ class MainActivity : FragmentActivity() {
                     detailsServerId != null -> ServerDetailsScreen(
                         vm = vm,
                         serverId = detailsServerId!!,
-                        onBack = { detailsServerId = null },
+                        initialAgentId = logAgent, initialLogContainerId = logContainer,
+                        onBack = { detailsServerId = null; logAgent = null; logContainer = null; showIncidents = returnToIncidents; returnToIncidents = false },
                     )
 
                     // форма добавления (с FAB): после установки закрывается сама
@@ -141,9 +151,10 @@ class MainActivity : FragmentActivity() {
 
                     else -> ServerListScreen(
                         vm = vm,
-                        onOpenDetails = { detailsServerId = it },
+                        onOpenDetails = { detailsServerId = it; returnToIncidents = false },
                         onAdd = { showOnboarding = true },
                         onOpenSettings = { showSettings = true },
+                        onOpenIncidents = { showIncidents = true },
                     )
                 }
             }

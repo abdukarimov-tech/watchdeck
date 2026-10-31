@@ -1,42 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <!-- WatchDeck: сигнальный огонь сервера (adaptive foreground) -->
-    <!-- лучи света -->
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#4FC3F7"
-        android:strokeWidth="3"
-        android:strokeLineCap="round"
-        android:pathData="M28,37 L19,28" />
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#4FC3F7"
-        android:strokeWidth="3"
-        android:strokeLineCap="round"
-        android:pathData="M80,37 L89,28" />
-    <!-- корпус фонаря -->
-    <path
-        android:fillColor="#171B24"
-        android:strokeColor="#333B4C"
-        android:strokeWidth="3"
-        android:pathData="M38,40 L70,40 L72,76 C72,78.2 70.2,80 68,80 L40,80 C37.8,80 36,78.2 36,76 Z" />
-    <!-- верхняя крышка -->
-    <path
-        android:fillColor="#333B4C"
-        android:pathData="M34,40 L74,40 L70,32 L38,32 Z" />
-    <!-- основание -->
-    <path
-        android:fillColor="#333B4C"
-        android:pathData="M34,83 L74,83 C74,84.7 72.7,86 71,86 L37,86 C35.3,86 34,84.7 34,83 Z" />
-    <!-- пламя -->
-    <path
-        android:fillColor="#FF8A3D"
-        android:pathData="M54,46 C56.5,51 62,54.5 63,61 C64,68 59.5,74 54,75 C48.5,74 44,68 45,61 C46,54.5 51.5,51 54,46 Z" />
-    <path
-        android:fillColor="#FFD54F"
-        android:pathData="M54,58 C55.5,60.5 58,62.5 58.3,65.5 C58.6,69 56.5,71.5 54,72 C51.5,71.5 49.4,69 49.7,65.5 C50,62.5 52.5,60.5 54,58 Z" />
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- W-pulse. Android masks the central 72dp; keep the same scale as iOS. -->
+    <group android:pivotX="54" android:pivotY="54"
+        android:scaleX="0.6666667" android:scaleY="0.6666667">
+        <path android:fillColor="#00000000" android:strokeColor="#6B9EFF"
+            android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round"
+            android:pathData="M74,24 H36 C29.373,24 24,29.373 24,36 V72 C24,78.627 29.373,84 36,84 H72 C78.627,84 84,78.627 84,72 V36" />
+        <path android:fillColor="#00000000" android:strokeColor="#6B9EFF"
+            android:strokeWidth="7" android:strokeLineCap="round" android:strokeLineJoin="round"
+            android:pathData="M32,44 L43,70 L54,49 L65,70 L76,44" />
+        <path android:fillColor="#6B9EFF"
+            android:pathData="M85.4,27 A4.1,4.1 0,1 1,77.2 27 A4.1,4.1 0,1 1,85.4 27 Z" />
+    </group>
 </vector>

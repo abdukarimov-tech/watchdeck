@@ -127,3 +127,15 @@ provisioned device was available for visual verification or real push delivery.
 - [APNs notification requests](https://developer.apple.com/documentation/usernotifications/sending-notification-requests-to-apns)
 - [APNs provider token authentication](https://developer.apple.com/documentation/usernotifications/establishing-a-token-based-connection-to-apns)
 - [Android widget updates](https://developer.android.com/develop/ui/views/appwidgets/advanced)
+
+## Combined server update
+
+The existing “Update agent” button now updates the local relay first, then the agent.
+A host without a local relay updates only its agent. Both applications use the same
+`update-server.sh` resource. Downloads are verified against the release SHA-256 manifest
+before either binary changes. Existing binaries, relay configuration and a consistent
+SQLite backup are retained under `/var/lib/watchdeck-updates/`. A failed restart restores
+the previous binaries. Tokens, certificates and service configuration are preserved.
+
+The updater requires systemd, flock, sha256sum and curl or wget; a local relay also
+requires Python 3 for SQLite backup. Multiple concurrent updates on one host are blocked.

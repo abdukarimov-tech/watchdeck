@@ -20,8 +20,8 @@
     <string name="details_remove_text">Этот сервер и его токен будут удалены с устройства.</string>
     <string name="details_remove_confirm">Удалить</string>
     <string name="details_menu">Настройки сервера</string>
-    <string name="details_update_ok">Агент обновлен</string>
-    <string name="details_update_fail">Не удалось обновить агента: %1$s</string>
+    <string name="details_update_ok">Компоненты сервера обновлены</string>
+    <string name="details_update_fail">Не удалось обновить сервер: %1$s</string>
     <string name="details_no_ssh">Нет сохраненного SSH-доступа для этого сервера</string>
     <string name="details_uptime">аптайм %1$s</string>
     <plurals name="agents_count">
@@ -117,8 +117,8 @@
     <string name="details_update_agent">Обновить агента</string>
     <string name="details_reissue_tls">Перевыпустить сертификаты</string>
     <string name="details_reissue_ok">Сертификаты перевыпущены, соединение восстановлено</string>
-    <string name="agent_updated">Агент обновлён</string>
-    <string name="agent_updating">Обновление агента…</string>
+    <string name="agent_updated">Компоненты сервера обновлены</string>
+    <string name="agent_updating">Обновление компонентов сервера…</string>
     <string name="agent_version_fmt">агент v%1$s</string>
     <string name="settings_app_lock">Замок приложения (биометрия / PIN)</string>
     <string name="settings_relay_manage">Управление релеем</string>

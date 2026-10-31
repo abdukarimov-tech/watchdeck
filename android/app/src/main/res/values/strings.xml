@@ -20,8 +20,8 @@
     <string name="details_remove_text">This server and its token will be removed from this device.</string>
     <string name="details_remove_confirm">Remove</string>
     <string name="details_menu">Server settings</string>
-    <string name="details_update_ok">Agent updated</string>
-    <string name="details_update_fail">Agent update failed: %1$s</string>
+    <string name="details_update_ok">Server components updated</string>
+    <string name="details_update_fail">Server update failed: %1$s</string>
     <string name="details_no_ssh">No saved SSH access for this server</string>
     <string name="details_uptime">uptime %1$s</string>
     <plurals name="agents_count">
@@ -113,8 +113,8 @@
     <string name="details_update_agent">Update agent</string>
     <string name="details_reissue_tls">Re-issue certificates</string>
     <string name="details_reissue_ok">Certificates re-issued, connection restored</string>
-    <string name="agent_updated">Agent updated</string>
-    <string name="agent_updating">Updating agent…</string>
+    <string name="agent_updated">Server components updated</string>
+    <string name="agent_updating">Updating server components…</string>
     <string name="agent_version_fmt">agent v%1$s</string>
     <string name="settings_app_lock">App lock (biometrics / PIN)</string>
     <string name="settings_relay_manage">Relay management</string>

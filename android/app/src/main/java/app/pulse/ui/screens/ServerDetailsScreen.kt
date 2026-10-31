@@ -276,6 +276,10 @@ fun ServerDetailsScreen(
         },
     ) { padding ->
         Column(Modifier.padding(padding)) {
+            if (updatingAgent) {
+                androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth())
+                Text(stringResource(R.string.agent_updating), modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            }
             if (server.relayUrl.isNotEmpty()) {
                 Text(
                     server.relayUrl,

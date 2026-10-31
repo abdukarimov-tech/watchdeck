@@ -453,17 +453,18 @@ class SshInstaller(private val onLog: (String) -> Unit) {
     }
 
     /**
-     * Обновление бинарника агента (download + restart). Соединение проверяется
+     * Обновление локального релея и агента с проверкой SHA-256 и откатом. Соединение проверяется
      * по сохраненному отпечатку.
      */
     suspend fun updateAgent(
         cfg: SshConfig,
         expectedFp: String,
+        updateScript: String,
         onLog: (String) -> Unit = {},
     ): Unit = withContext(Dispatchers.IO) {
         val ssh = SSHClient().apply {
             connectTimeout = 15_000
-            timeout = 30_000
+            timeout = 450_000
             addHostKeyVerifier(object : HostKeyVerifier {
                 override fun verify(hostname: String, port: Int, key: java.security.PublicKey): Boolean {
                     if (expectedFp.isBlank()) return true
@@ -496,10 +497,11 @@ class SshInstaller(private val onLog: (String) -> Unit) {
             // как в installServer: новый session-канал на каждую команду
             fun exec(cmd: String, stdin: String? = null): String =
                 ssh.startSession().use { session ->
-                    val command = session.exec(cmd)
+                    val command = session.exec("$cmd 2>&1")
                     stdin?.let { command.outputStream.write(it.toByteArray()); command.outputStream.flush() }
                     val out = command.inputStream.bufferedReader().readText()
                     command.join()
+                    if (command.exitStatus != 0) throw IOException(out.trim().takeLast(2000).ifEmpty { "Server update command failed" })
                     out
                 }
             val isRoot = exec("id -u").trim() == "0"
@@ -508,21 +510,10 @@ class SshInstaller(private val onLog: (String) -> Unit) {
                 if (isRoot) exec(cmd)
                 else exec("sudo -S -p '' sh -c '${cmd.replace("'", "'\\''")}'", (sudoPassword ?: "") + "\n")
 
-            val arch = when (sh("uname -m").trim()) {
-                "x86_64" -> "x86_64"
-                "aarch64", "arm64" -> "aarch64"
-                else -> throw IOException("unsupported architecture")
-            }
-            onLog("downloading agent ($arch)…")
-            val binaryUrl = "$RELEASE_BASE/pulse-agent-$arch"
-            // временный файл + mv: агент может быть запущен с прошлой установки
-            sh("curl -fsSL '$binaryUrl' -o /usr/local/bin/.pulse-agent.new || wget -qO /usr/local/bin/.pulse-agent.new '$binaryUrl'")
-            sh("mv -f /usr/local/bin/.pulse-agent.new /usr/local/bin/pulse-agent")
-            sh("chmod 0755 /usr/local/bin/pulse-agent")
-            sh("systemctl restart pulse-agent")
-            val active = sh("systemctl is-active pulse-agent").trim()
-            if (active != "active") throw IOException("agent service is not active: $active")
-            onLog("agent updated and active")
+            onLog("updating relay and agent…")
+            val quotedScript = "'" + updateScript.replace("'", "'\\''") + "'"
+            val result = sh("sh -c $quotedScript watchdeck-update '$RELEASE_BASE'")
+            onLog(result.trim())
         } finally {
             ssh.disconnect()
         }

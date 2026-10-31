@@ -74,8 +74,8 @@
 "ssh_connect_error" = "Ошибка SSH: %@";
 
 "details_update_agent" = "Обновить агента";
-"agent_updated" = "Агент обновлен";
-"agent_updating" = "Обновляем агента…";
+"agent_updated" = "Компоненты сервера обновлены";
+"agent_updating" = "Обновление компонентов сервера…";
 "agent_version_fmt" = "агент v%@";
 "agent_update_unavailable" = "Для обновления агента нужны сохраненные SSH-данные";
 

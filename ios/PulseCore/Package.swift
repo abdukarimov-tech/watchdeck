@@ -20,7 +20,8 @@ let package = Package(
             dependencies: [
                 .product(name: "Citadel", package: "Citadel"),
                 .product(name: "NIOSSH", package: "swift-nio-ssh"),
-            ]
+            ],
+            resources: [.copy("Resources/update-server.sh")]
         ),
         .testTarget(name: "PulseCoreTests", dependencies: ["PulseCore"]),
     ],

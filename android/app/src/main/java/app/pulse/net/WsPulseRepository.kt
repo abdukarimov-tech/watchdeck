@@ -30,6 +30,8 @@ class WsPulseRepository(config: ServersStore.ServerConfig) : PulseRepository {
     override fun requestLogs(agentId: String, containerId: String) =
         conn.requestLogs(agentId, containerId)
 
+    suspend fun refreshAgents() = conn.refreshAgents()
+
     override fun stopLogs() = conn.stopLogs()
 
     override fun close() {

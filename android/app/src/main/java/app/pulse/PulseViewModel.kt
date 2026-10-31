@@ -176,7 +176,7 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Обновление бинарника агента на сервере по SSH. onResult(null) — успех. */
+    /** Обновление локального релея и агента на сервере по SSH. onResult(null) — успех. */
     fun updateAgentRemote(id: String, onResult: (String?) -> Unit) {
         val srv = servers.value.firstOrNull { it.id == id }
         if (srv == null || srv.isDemo || srv.sshAuthMode.isEmpty() || srv.sshSecret.isEmpty()) {
@@ -186,7 +186,7 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val installer = SshInstaller { }
             val err = runCatching {
-                kotlinx.coroutines.withTimeout(180_000) {
+                kotlinx.coroutines.withTimeout(480_000) {
                     installer.updateAgent(
                         SshInstaller.SshConfig(
                             host = srv.label.ifEmpty { srv.relayUrl },
@@ -198,8 +198,10 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
                             },
                         ),
                         expectedFp = srv.sshHostKeyFp,
+                        updateScript = getApplication<Application>().assets.open("update-server.sh").bufferedReader().use { it.readText() },
                     )
                 }
+                (repos[id] as? WsPulseRepository)?.refreshAgents()
                 null
             }.exceptionOrNull()?.message
             onResult(err)
@@ -578,7 +580,7 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Обновление бинарника агента по SSH (по сохраненному доступу). */
+    /** Обновление локального релея и агента по сохраненному SSH-доступу. */
     fun updateAgent(serverId: String) {
         val cfg = servers.value.firstOrNull { it.id == serverId } ?: return
         val sshCfg = cfg.toSshConfig()
@@ -589,7 +591,7 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             toasts.emit(getApplication<Application>().getString(R.string.agent_updating))
             runCatching {
-                SshInstaller { }.updateAgent(sshCfg, cfg.sshHostKeyFp) { }
+                SshInstaller { }.updateAgent(sshCfg, cfg.sshHostKeyFp, getApplication<Application>().assets.open("update-server.sh").bufferedReader().use { it.readText() }) { }
             }.onSuccess {
                 toasts.emit(getApplication<Application>().getString(R.string.agent_updated))
             }.onFailure {

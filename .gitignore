@@ -34,3 +34,7 @@ ios/DerivedData/
 *.key
 *.mobileprovision
 *service-account*.json
+
+# Python test caches
+__pycache__/
+*.pyc

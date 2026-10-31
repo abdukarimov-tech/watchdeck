@@ -15,8 +15,8 @@ android {
         applicationId = "app.pulse"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.1.1"
     }
 
     // релизное подписание из env (см. RELEASE.md); без env — unsigned APK
@@ -59,6 +59,8 @@ android {
     // контракт протокола переиспользуем прямо из корня репозитория
     sourceSets {
         getByName("main") {
+            // One updater shared with the iOS Swift package.
+            assets.srcDir("../../ios/PulseCore/Sources/PulseCore/Resources")
             proto {
                 srcDir("../../proto")
             }

@@ -83,8 +83,8 @@
 
 /* agent update */
 "details_update_agent" = "Update agent";
-"agent_updated" = "Agent updated";
-"agent_updating" = "Updating agent…";
+"agent_updated" = "Server components updated";
+"agent_updating" = "Updating server components…";
 "agent_version_fmt" = "agent v%@";
 "agent_update_unavailable" = "Agent update requires stored SSH credentials";
 

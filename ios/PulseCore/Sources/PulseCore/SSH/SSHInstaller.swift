@@ -37,7 +37,7 @@ public struct SSHInstallResult: Sendable {
 }
 
 public final class SSHInstaller: @unchecked Sendable {
-    public static let releaseBase = "https://github.com/watchdeck-app/watchdeck/releases/latest/download"
+    public static let releaseBase = "https://github.com/abdukarimov-tech/watchdeck/releases/latest/download"
 
     public var onLog: (@Sendable (String) -> Void)?
     /// Интерактивное подтверждение host key при первом контакте с сервером.
@@ -226,9 +226,9 @@ public final class SSHInstaller: @unchecked Sendable {
         )
     }
 
-    // MARK: - Update agent
+    // MARK: - Update server
 
-    /// Обновление бинарника агента (download + restart). Соединение по сохраненному отпечатку.
+    /// Обновление локального релея и агента с проверкой SHA-256 и откатом.
     public func updateAgent(expectedFp: String) async throws {
         onLog?("connecting to \(params.host):\(params.port)")
         let (client, _) = try await connect(pinnedFingerprint: expectedFp)
@@ -244,25 +244,14 @@ public final class SSHInstaller: @unchecked Sendable {
             try await runner.sudo(cmd, isRoot: isRoot, sudoPassword: password)
         }
 
-        let archName = try await sh("uname -m").trimmingCharacters(in: .whitespacesAndNewlines)
-        let arch: String
-        switch archName {
-        case "x86_64": arch = "x86_64"
-        case "aarch64", "arm64": arch = "aarch64"
-        default: throw SSHError.commandFailed("unsupported architecture")
+        guard let scriptURL = Bundle.module.url(forResource: "update-server", withExtension: "sh") else {
+            throw SSHError.commandFailed("Server updater resource missing")
         }
-        onLog?("downloading agent (\(arch))…")
-        let binaryUrl = "\(Self.releaseBase)/pulse-agent-\(arch)"
-        try await sh(
-            "curl -fsSL '\(binaryUrl)' -o /usr/local/bin/pulse-agent || wget -qO /usr/local/bin/pulse-agent '\(binaryUrl)'")
-        try await sh("chmod 0755 /usr/local/bin/pulse-agent")
-        try await sh("systemctl restart pulse-agent")
-        let active = try await sh("systemctl is-active pulse-agent")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard active == "active" else {
-            throw SSHError.commandFailed("agent service is not active: \(active)")
-        }
-        onLog?("agent updated and active")
+        let script = try String(contentsOf: scriptURL, encoding: .utf8)
+        onLog?("updating relay and agent…")
+        let result = try await sh("sh -c \(SSHShell.quote(script)) watchdeck-update \(SSHShell.quote(Self.releaseBase))")
+        onLog?(result)
+
     }
 
     // MARK: - Helpers
@@ -341,7 +330,7 @@ final class SSHCommandRunner: Sendable {
             let buffer = try await client.executeCommand(command)
             return String(decoding: buffer.readableBytesView, as: UTF8.self)
         } catch let failure as SSHClient.CommandFailed {
-            throw SSHError.commandFailed("command failed (\(failure.exitCode)): \(command)")
+            throw SSHError.commandFailed("SSH command failed (\(failure.exitCode))")
         }
     }
 
